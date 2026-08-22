@@ -844,66 +844,122 @@ HTML_CONTENT = """<!DOCTYPE html>
     const PRESETS = {
       nvidia: {
         provider: 'nvidia',
-        name: 'NVIDIA NIM (Default / Free Endpoints)',
+        name: 'NVIDIA NIM (Free Developer Endpoints)',
         base_url: 'https://integrate.api.nvidia.com/v1',
         model: 'meta/llama-3.1-8b-instruct',
-        models: ['meta/llama-3.1-8b-instruct', 'deepseek-ai/deepseek-v4-flash-0731', 'meta/llama-3.3-70b-instruct', 'mistralai/mistral-large-2-instruct']
+        models: [
+          'meta/llama-3.1-8b-instruct',
+          'deepseek-ai/deepseek-v4-flash-0731',
+          'meta/llama-3.3-70b-instruct',
+          'mistralai/mistral-large-2411'
+        ]
       },
       openai: {
         provider: 'openai',
-        name: 'OpenAI (ChatGPT / GPT-4o / o1)',
+        name: 'OpenAI (GPT-5.6 / o4-mini / o3 / GPT-4o)',
         base_url: 'https://api.openai.com/v1',
-        model: 'gpt-4o',
-        models: ['gpt-4o', 'gpt-4o-mini', 'o1', 'o3-mini', 'gpt-4-turbo']
+        model: 'gpt-5.6-sol',
+        models: [
+          'gpt-5.6-sol',
+          'gpt-5.6-terra',
+          'gpt-5.6-luna',
+          'o4-mini',
+          'o3',
+          'gpt-4.5-preview',
+          'gpt-4o',
+          'gpt-4o-mini'
+        ]
       },
       claude: {
         provider: 'claude',
-        name: 'Anthropic (Claude 3.7 / 3.5 Sonnet)',
+        name: 'Anthropic Claude (Opus 5 / Sonnet 5 / Claude 3.7)',
         base_url: 'https://openrouter.ai/api/v1',
-        model: 'anthropic/claude-3.7-sonnet',
-        models: ['anthropic/claude-3.7-sonnet', 'anthropic/claude-3.5-sonnet', 'anthropic/claude-3.5-haiku', 'anthropic/claude-3-opus']
+        model: 'anthropic/claude-sonnet-5',
+        models: [
+          'anthropic/claude-opus-5',
+          'anthropic/claude-sonnet-5',
+          'anthropic/claude-fable-5',
+          'anthropic/claude-haiku-4.5',
+          'anthropic/claude-3.7-sonnet',
+          'anthropic/claude-3.5-sonnet'
+        ]
       },
       deepseek: {
         provider: 'deepseek',
-        name: 'DeepSeek Official (DeepSeek-V3 / R1)',
+        name: 'DeepSeek Official (V4 Pro / Flash / R1)',
         base_url: 'https://api.deepseek.com/v1',
-        model: 'deepseek-chat',
-        models: ['deepseek-chat', 'deepseek-reasoner']
+        model: 'deepseek-v4-pro',
+        models: [
+          'deepseek-v4-pro',
+          'deepseek-v4-flash',
+          'deepseek-chat',
+          'deepseek-reasoner'
+        ]
       },
       qwen: {
         provider: 'qwen',
-        name: 'Alibaba Qwen (DashScope / Qwen-Max)',
+        name: 'Alibaba Qwen (Qwen3.8-Max / QwQ / Qwen2.5)',
         base_url: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
-        model: 'qwen-max',
-        models: ['qwen-max', 'qwen-plus', 'qwen-turbo', 'qwen-2.5-72b-instruct', 'qwq-32b']
+        model: 'qwen3.8-max',
+        models: [
+          'qwen3.8-max',
+          'qwen-max',
+          'qwen-plus',
+          'qwen-turbo',
+          'qwq-32b',
+          'qwen-2.5-72b-instruct'
+        ]
       },
       gemini: {
         provider: 'gemini',
-        name: 'Google Gemini (Gemini 2.5 Flash / Pro)',
+        name: 'Google Gemini (Gemini 3.7 Flash / 3.1 Pro / 2.5)',
         base_url: 'https://generativelanguage.googleapis.com/v1beta/openai/',
-        model: 'gemini-2.5-flash',
-        models: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash', 'gemini-1.5-pro']
+        model: 'gemini-3.7-flash',
+        models: [
+          'gemini-3.7-flash',
+          'gemini-3.6-flash',
+          'gemini-3.1-pro',
+          'gemini-2.5-flash',
+          'gemini-2.5-pro'
+        ]
       },
       groq: {
         provider: 'groq',
-        name: 'Groq LPU (Ultra-Fast Llama 3.3)',
+        name: 'Groq LPU (Ultra-Fast Llama 3.3 & R1)',
         base_url: 'https://api.groq.com/openai/v1',
         model: 'llama-3.3-70b-versatile',
-        models: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768', 'deepseek-r1-distill-llama-70b']
+        models: [
+          'llama-3.3-70b-versatile',
+          'llama-3.1-8b-instant',
+          'deepseek-r1-distill-llama-70b',
+          'mixtral-8x7b-32768'
+        ]
       },
       openrouter: {
         provider: 'openrouter',
-        name: 'OpenRouter (Universal 200+ Models)',
+        name: 'OpenRouter (Universal 200+ Multi-LLM)',
         base_url: 'https://openrouter.ai/api/v1',
-        model: 'google/gemini-2.0-flash-exp:free',
-        models: ['google/gemini-2.0-flash-exp:free', 'anthropic/claude-3.7-sonnet', 'deepseek/deepseek-r1', 'meta-llama/llama-3.3-70b-instruct:free']
+        model: 'anthropic/claude-sonnet-5',
+        models: [
+          'anthropic/claude-sonnet-5',
+          'openai/gpt-5.6-sol',
+          'deepseek/deepseek-v4-pro',
+          'google/gemini-3.7-flash',
+          'meta-llama/llama-3.3-70b-instruct:free',
+          'google/gemini-2.0-flash-exp:free'
+        ]
       },
       custom: {
         provider: 'custom',
-        name: 'Custom OpenAI-Compatible Endpoint',
+        name: 'Custom OpenAI-Compatible (Ollama / vLLM / Local)',
         base_url: 'http://localhost:11434/v1',
-        model: 'llama3',
-        models: ['llama3', 'mistral', 'qwen2.5-coder', 'phi3']
+        model: 'llama3.3',
+        models: [
+          'llama3.3',
+          'qwen2.5-coder:32b',
+          'deepseek-r1:32b',
+          'mistral-large'
+        ]
       }
     };
 
