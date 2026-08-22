@@ -21,3 +21,6 @@ __pycache__/
 # Logs
 *.log
 logs/
+
+# Firebase local cache
+.firebase/
