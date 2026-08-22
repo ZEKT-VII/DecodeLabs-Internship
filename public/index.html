@@ -168,21 +168,24 @@
 
         <form onsubmit="handleSaveSettings(event)" class="bg-zinc-950/70 border border-zinc-800 rounded-xl p-3 space-y-3">
           <div class="space-y-1">
-            <label class="text-[11px] font-semibold text-zinc-300 uppercase tracking-wider block">AI Provider Preset</label>
+            <div class="flex justify-between items-center">
+              <label class="text-[11px] font-semibold text-zinc-300 uppercase tracking-wider block">AI Provider Preset</label>
+              <span id="provider-cors-badge" class="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.2 rounded font-mono">CORS Ready</span>
+            </div>
             <select
               id="settings-provider-select"
               onchange="handleProviderSelectChange(this.value)"
               class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-2 text-xs text-zinc-100 focus:border-purple-500 focus:outline-none cursor-pointer font-medium"
             >
-              <option value="openrouter">🌐 OpenRouter (Universal 200+ Models)</option>
-              <option value="groq">🟠 Groq LPU (Ultra-Fast Llama 3.3)</option>
-              <option value="gemini">🔵 Google Gemini (Gemini 3.7 / 2.5 Flash)</option>
-              <option value="openai">🟢 OpenAI (GPT-5.6 / o4-mini / GPT-4o)</option>
-              <option value="claude">🟣 Anthropic Claude (Sonnet 5 / Opus 5)</option>
-              <option value="deepseek">🔵 DeepSeek Official (V4 Pro / Flash)</option>
-              <option value="qwen">🟣 Alibaba Qwen (Qwen3.8-Max / QwQ)</option>
-              <option value="nvidia">🟢 NVIDIA NIM (Developer Endpoints)</option>
-              <option value="custom">⚪ Custom OpenAI-Compatible (Ollama / Local)</option>
+              <option value="openrouter">🌐 OpenRouter (Browser CORS Ready · Free & Paid)</option>
+              <option value="groq">🟠 Groq LPU (Browser CORS Ready · Ultra-Fast)</option>
+              <option value="gemini">🔵 Google Gemini (Browser CORS Ready)</option>
+              <option value="nvidia">🟢 NVIDIA NIM (Requires Local Backend `server.py`)</option>
+              <option value="openai">🟢 OpenAI ChatGPT (Requires Local Backend or OpenRouter)</option>
+              <option value="claude">🟣 Anthropic Claude (via OpenRouter Gateway)</option>
+              <option value="deepseek">🔵 DeepSeek Official (Requires Local Backend)</option>
+              <option value="qwen">🟣 Alibaba Qwen (DashScope)</option>
+              <option value="custom">⚪ Custom OpenAI-Compatible Endpoint</option>
             </select>
           </div>
 
@@ -556,6 +559,16 @@
       document.getElementById('settings-baseurl-input').value = p.base_url;
       document.getElementById('settings-model-input').value = p.model;
       renderModelSelectOptions(providerKey, p.model);
+
+      // Update CORS badge
+      const badge = document.getElementById('provider-cors-badge');
+      if (['openrouter', 'groq', 'gemini'].includes(providerKey)) {
+        badge.textContent = 'Browser CORS Ready';
+        badge.className = 'text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.2 rounded font-mono';
+      } else {
+        badge.textContent = 'Requires Local Backend';
+        badge.className = 'text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.2 rounded font-mono';
+      }
     }
 
     function renderModelSelectOptions(providerKey, activeModel) {
@@ -588,6 +601,7 @@
     async function handleTestConnection() {
       const btn = document.getElementById('btn-test-connection');
       const resultBox = document.getElementById('test-result-box');
+      const provider = document.getElementById('settings-provider-input').value;
       const base_url = document.getElementById('settings-baseurl-input').value.trim();
       const model = document.getElementById('settings-model-input').value.trim();
       const api_key = document.getElementById('settings-key-input').value.trim();
@@ -627,12 +641,16 @@
         } else {
           const errText = await resp.text();
           resultBox.className = 'p-2.5 rounded-lg text-xs border bg-red-950/40 border-red-500/40 text-red-300';
-          resultBox.innerHTML = `❌ Error HTTP ${resp.status}: ${escapeHtml(errText.substring(0, 120))}`;
+          resultBox.innerHTML = `❌ Error HTTP ${resp.status}: ${escapeHtml(errText.substring(0, 150))}`;
         }
       } catch (err) {
         resultBox.classList.remove('hidden');
-        resultBox.className = 'p-2.5 rounded-lg text-xs border bg-red-950/40 border-red-500/40 text-red-300';
-        resultBox.innerHTML = `❌ Network Error: ${escapeHtml(err.message)}`;
+        resultBox.className = 'p-2.5 rounded-lg text-xs border bg-red-950/40 border-red-500/40 text-red-300 space-y-1';
+        if (err.message.includes('fetch') && ['nvidia', 'openai', 'deepseek', 'qwen'].includes(provider)) {
+          resultBox.innerHTML = `<div>❌ <b>CORS Blocked by Provider</b></div><div class="text-[11px] text-zinc-300 leading-tight">The <b>${provider.toUpperCase()}</b> API endpoint blocks direct cross-origin browser calls from hosted web apps.<br/>👉 <b>Solution:</b> Use <b>OpenRouter</b>, <b>Groq</b>, or <b>Google Gemini</b> (which allow browser CORS) or run the local backend (<code>python server.py</code>).</div>`;
+        } else {
+          resultBox.innerHTML = `❌ Network Error: ${escapeHtml(err.message)}`;
+        }
       } finally {
         btn.disabled = false;
         btn.innerHTML = '<i class="fa-solid fa-plug text-xs text-cyan-400"></i> <span>Test Connection</span>';
@@ -991,7 +1009,11 @@
         liveLatency.textContent = `Latency: ${elapsed}s`;
       } catch (err) {
         removeTypingIndicator(typingId);
-        appendMessage('system', '❌ Network error: ' + err.message + ' (Check Settings)');
+        if (err.message.includes('fetch') && ['nvidia', 'openai', 'deepseek', 'qwen'].includes(settings.provider)) {
+          appendMessage('system', `❌ <b>CORS Preflight Blocked by ${settings.provider.toUpperCase()}</b><br/><span class="text-xs text-zinc-300">The <code>${settings.provider}</code> API server blocks direct cross-origin browser requests from hosted websites.<br/>👉 <b>To fix:</b> Use <b>OpenRouter</b> (free models available), <b>Groq</b>, or <b>Google Gemini</b> in Settings, or run the local backend server (<code>python server.py</code>).</span>`);
+        } else {
+          appendMessage('system', '❌ Network error: ' + err.message + ' (Check API Settings in sidebar)');
+        }
         liveLatency.textContent = 'Error';
       } finally {
         sendBtn.disabled = false;
