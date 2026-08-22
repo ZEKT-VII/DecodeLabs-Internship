@@ -452,12 +452,12 @@ HTML_CONTENT = """<!DOCTYPE html>
       </div>
 
       <!-- TAB 2: Global Memory View -->
-      <div id="tab-content-global" class="flex-1 flex flex-col min-h-0 p-3 space-y-3 hidden">
+      <div id="tab-content-global" class="flex-1 flex flex-col min-h-0 p-3 space-y-3 hidden overflow-y-auto custom-scrollbar">
         <!-- Global Memory Header & Explanation -->
-        <div class="bg-amber-950/20 border border-amber-800/30 rounded-xl p-3 text-xs space-y-1.5">
-          <div class="flex items-center gap-1.5 font-semibold text-amber-400">
-            <i class="fa-solid fa-earth-americas"></i>
-            <span>Global Memory Layer</span>
+        <div class="bg-amber-950/20 border border-amber-800/30 rounded-xl p-3 text-xs space-y-1.5 shrink-0">
+          <div class="flex items-center justify-between font-semibold text-amber-400">
+            <span class="flex items-center gap-1.5"><i class="fa-solid fa-earth-americas"></i> Global Memory Layer</span>
+            <span id="global-facts-count-badge" class="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.2 rounded font-mono">0 facts</span>
           </div>
           <p class="text-zinc-300 text-[11px] leading-relaxed">
             Facts added here are <b>shared across all chat sessions</b> and automatically injected into every conversation's system context.
@@ -465,7 +465,7 @@ HTML_CONTENT = """<!DOCTYPE html>
         </div>
 
         <!-- Add Global Fact Form -->
-        <form onsubmit="handleAddGlobalFact(event)" class="bg-zinc-950/70 border border-zinc-800 rounded-xl p-3 space-y-2.5">
+        <form onsubmit="handleAddGlobalFact(event)" class="bg-zinc-950/70 border border-zinc-800 rounded-xl p-3 space-y-2.5 shrink-0">
           <p class="text-[11px] font-medium text-zinc-400 uppercase tracking-wider">Add Global Fact</p>
 
           <!-- Preset Dropdown -->
@@ -508,9 +508,11 @@ HTML_CONTENT = """<!DOCTYPE html>
           </button>
         </form>
 
-        <!-- Global Facts List (Scrollable) -->
-        <div class="flex-1 overflow-y-auto space-y-1.5 custom-scrollbar min-h-0">
-          <p class="text-[11px] font-medium text-zinc-500 uppercase tracking-wider px-1">Active Global Facts</p>
+        <!-- Global Facts List (Spacious & Fully Visible) -->
+        <div class="space-y-1.5 pt-1">
+          <div class="flex items-center justify-between px-1">
+            <span class="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">Active Global Facts</span>
+          </div>
           <div id="global-facts-list" class="space-y-1.5">
             <!-- Populated by JS -->
           </div>
@@ -1266,6 +1268,8 @@ HTML_CONTENT = """<!DOCTYPE html>
 
     function renderGlobalFactsList() {
       document.getElementById('stat-global-count').textContent = globalFactsCache.length;
+      const countBadge = document.getElementById('global-facts-count-badge');
+      if (countBadge) countBadge.textContent = `${globalFactsCache.length} facts`;
 
       if (globalFactsCache.length === 0) {
         globalFactsListEl.innerHTML = '<div class="text-xs text-zinc-500 italic p-3 text-center bg-zinc-950/40 rounded-xl border border-zinc-800/40">No global facts yet. Add one above!</div>';
