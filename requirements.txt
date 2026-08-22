@@ -1,0 +1,8 @@
+# Core Dependencies for Stateful Conversational Agent (Project 1)
+openai>=1.50.0,<2.0.0
+pydantic>=2.0.0,<3.0.0
+python-dotenv>=1.0.0,<2.0.0
+rich>=13.0.0,<16.0.0
+pytest>=8.0.0,<10.0.0
+fastapi>=0.110.0,<1.0.0
+uvicorn>=0.30.0,<1.0.0
