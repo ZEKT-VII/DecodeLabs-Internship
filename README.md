@@ -1,39 +1,55 @@
-# Stateful Conversational Agent with Multi-Session & Dual-Layer Memory
+# Stateful Conversational Agent with Multi-Session, Dual-Layer Memory & Encrypted Vault
 
 > **DecodeLabs Industrial Generative AI Project 1**  
-> *Production-Hardened Multi-Turn Conversational AI Agent with Priority-Budgeted Memory, SQLite Persistence, and Interactive Web Dashboard.*
+> *Production-Hardened Multi-Turn Conversational AI Agent featuring Priority-Budgeted Memory, In-App Encrypted Credentials Vault, Multi-Provider Support, and an Interactive Dark-Mode Web Dashboard.*
 
 ---
 
 ## 🌟 Key Features
 
-- **Priority-Tiered Memory Architecture (P1–P4)**:
-  - **P1 (System Prompt)**: Non-negotiable base agent behavior.
-  - **Global Memory**: Persistent, cross-session user context and preferences (injected into all chats).
-  - **P2 / Local Memory**: Session-scoped pinned facts and constraints stored in SQLite metadata.
-  - **P3 (Preferences)**: Dynamic user preferences.
-  - **P4 (Rolling Window)**: Token-aware sliding window that automatically prunes the oldest turns when approaching context limits.
-- **Context Headroom & Conservative Token Budgeting**:
-  - Real-time token headroom calculation ($1\text{ token} \approx 3.0\text{ chars} + \text{safety margin}$).
-  - Guaranteed room for model completions without triggering context length overflows.
-- **Enterprise-Grade SQLite WAL Persistence**:
-  - Fast, thread-safe session and message logging with Write-Ahead Logging (`PRAGMA journal_mode=WAL;`).
-  - Cascading foreign key cleanup and busy timeouts (`PRAGMA busy_timeout=5000;`).
-- **Multi-Session Web Dashboard**:
-  - Interactive dark-mode chat UI built with **FastAPI** and **Tailwind CSS**.
-  - Create and switch between multiple isolated conversation threads.
-  - Full state restoration on page refreshes (F5) directly from SQLite.
-  - Dedicated **Global Memory** tab in the sidebar and **Local Memory** slide-over drawer in the top navigation bar.
-  - Real-time context headroom gauge, turn counts, and latency tracking.
-- **Terminal REPL Interface**:
-  - Terminal client styled with **Rich** featuring formatted panels, live status spinners, and command routing.
-- **Security & Secret Protection**:
-  - Environment-first secret resolution (`.env` / `NVIDIA_API_KEY`).
-  - Log scrubbing filter (`SecretScrubbingFilter`) redacting API keys and authorization headers from logs.
-  - Masked key previews for diagnostics and status verification.
-- **Resilience & Fault Tolerance**:
-  - Exponential backoff with jitter and transient status code classification (`429`, `500`, `502`, `503`, `504`).
-  - Caliper validation gate with Unicode NFC normalization and control character sanitization.
+### 🔒 In-App Settings & Encrypted Local Vault
+- **Zero `.env` Configuration Required**: End-users can configure API keys and model parameters directly from the in-app **Settings** tab.
+- **Machine-Bound AES Fernet Encryption**: API keys are securely encrypted on disk using AES-128-CBC with HMAC-SHA256 authenticated encryption (`.vault.key`, automatically gitignored) and stored in the SQLite database.
+- **Multi-Provider Presets**:
+  - 🟢 **NVIDIA NIM** (Default: `meta/llama-3.1-8b-instruct`, `deepseek-ai/deepseek-v4-flash-0731`, `meta/llama-3.3-70b-instruct`)
+  - 🟣 **OpenRouter** (`google/gemini-2.0-flash-exp:free`, `meta-llama/llama-3.3-70b-instruct:free`, `deepseek/deepseek-chat`)
+  - 🔵 **Google Gemini (OpenAI Compat)** (`gemini-2.5-flash`, `gemini-1.5-pro`)
+  - 🟠 **Groq** (`llama-3.3-70b-versatile`, `mixtral-8x7b-32768`)
+  - ⚪ **Custom OpenAI-Compatible** (Local Ollama, LM Studio, vLLM, Azure OpenAI)
+- **🔌 Live Connection Probe**: 1-click test button probes the endpoint and returns live response latency ($ms$) and connectivity diagnostics before saving.
+
+---
+
+### 🧠 Dual-Layer Memory & Priority-Tiered Budgeting (P1–P4)
+- **🌐 Global Memory Layer**:
+  - Cross-conversation context and persona settings stored in SQLite `global_memory`.
+  - Automatically synced and injected into every existing and new chat session.
+- **📌 Local Session Memory Drawer**:
+  - Dedicated slide-over drawer accessible directly from the top navigation bar.
+  - Pin task-specific facts, constraints, and project rules to the active conversation thread.
+- **P1–P4 Priority Hierarchy**:
+  - **P1**: System Instructions (Base persona & constraints).
+  - **P2 / Local Memory**: Pinned identity facts & session constraints.
+  - **P3**: User preferences.
+  - **P4**: Rolling conversation window pruned via token-budgeted FIFO when approaching headroom limits.
+- **Conservative Token Budgeting**:
+  - Real-time headroom calculation ($1\text{ token} \approx 3.0\text{ chars} + \text{safety margin}$) guarantees space for model completions without triggering context length overflows.
+
+---
+
+### 💻 Multi-Session Web Dashboard & Modern UI
+- Built with **FastAPI**, **Tailwind CSS**, and **Marked.js**.
+- Create, switch between, and delete isolated conversation threads.
+- Complete state restoration on browser refresh (F5) directly from SQLite.
+- Live token headroom gauge, active turn counters, and round-trip latency timers.
+
+---
+
+### 🛡️ Enterprise Security & Resilience
+- **SQLite WAL Persistence**: Write-Ahead Logging (`PRAGMA journal_mode=WAL;`) with busy timeouts (`5000ms`) and cascading foreign-key deletion.
+- **Secret Scrubbing Filter**: `SecretScrubbingFilter` intercepts and redacts API keys, Bearer tokens, and authorization headers from all logs, error messages, and exception traces.
+- **Fault-Tolerant Retries**: Exponential backoff with jitter for transient status codes (`429`, `500`, `502`, `503`, `504`).
+- **Caliper Validation Gate**: Input sanitization with Unicode NFC normalization, null-byte removal, and control-character filtering.
 
 ---
 
@@ -41,7 +57,7 @@
 
 ```mermaid
 graph TD
-    A["Web UI (server.py) / CLI (main.py)"] --> B["ConversationEngine (engine.py)"]
+    A["Web Dashboard (server.py) / Terminal CLI (main.py)"] --> B["ConversationEngine (engine.py)"]
     B --> C["CaliperValidationGate (validation.py)"]
     B --> D["MemoryManager (memory.py)"]
     B --> E["SessionStore (persistence.py)"]
@@ -49,19 +65,16 @@ graph TD
     D --> G["Token Estimator (token_budget.py)"]
     F --> H["Retry Mechanism (retry.py)"]
     F --> I["Security & Redaction (security.py)"]
-    E --> J[("SQLite WAL Database (chatbot_sessions.db)")]
-    F --> K["NVIDIA NIM API (OpenAI SDK)"]
+    E --> J[("SQLite Database (chatbot_sessions.db)")]
+    I --> K[("Encrypted Local Vault (.vault.key)")]
+    F --> L["OpenAI-Compatible Providers (NVIDIA NIM / OpenRouter / Gemini / Groq / Ollama)"]
 ```
 
 ---
 
 ## 🚀 Quick Start
 
-### 1. Prerequisites
-- Python 3.10+
-- NVIDIA Developer API Key (or OpenAI-compatible endpoint)
-
-### 2. Installation
+### 1. Installation
 ```bash
 git clone https://github.com/ZEKT-VII/stateful-conversational-agent.git
 cd stateful-conversational-agent
@@ -70,42 +83,34 @@ cd stateful-conversational-agent
 pip install -r requirements.txt
 ```
 
-### 3. Configuration
-Copy `.env.example` to `.env` and insert your API credentials:
-```bash
-cp .env.example .env
-```
-Edit `.env`:
-```ini
-NVIDIA_API_KEY=your_nvidia_api_key_here
-DEFAULT_MODEL=meta/llama-3.1-8b-instruct
-MAX_CONTEXT_TOKENS=8192
-RESERVED_OUTPUT_TOKENS=1024
-```
-
-### 4. Running the Web Application
-Launch the local web server:
+### 2. Launch the Web Application (Recommended)
 ```bash
 python server.py
 ```
-Open your browser and navigate to **`http://127.0.0.1:8000`**.
+1. Open your browser and navigate to **`http://127.0.0.1:8000`**.
+2. Click the **`⚙️ Settings`** tab in the sidebar.
+3. Select your provider preset (e.g. **NVIDIA NIM**, **Google Gemini**, **OpenRouter**, or **Groq**), enter your API key, and click **Test Connection** ➔ **Encrypt & Save Settings**.
+4. You are ready to chat!
 
-### 5. Running the Terminal CLI
+---
+
+### 3. Launch the Terminal REPL
 ```bash
 python main.py
 ```
+*If no API key is configured, an interactive onboarding prompt will securely guide you through setup.*
 
 ---
 
 ## 🧪 Test Suite
 
-The repository includes a 121+ test suite covering unit tests, integration tests, slash command routers, security filters, and live NVIDIA API memory exams:
+The project includes an extensive **123 automated test suite** with 100% pass rate:
 
 ```bash
-# Run offline unit and integration tests (117+ tests)
+# Run offline unit and integration tests (121 tests)
 python -m pytest tests/ -v -m "not live"
 
-# Run live Memory Exam against NVIDIA NIM API
+# Run live Memory Exam against live endpoints (2 tests)
 python -m pytest tests/test_memory_exam.py -v -m live
 
 # Run all tests
@@ -118,23 +123,24 @@ python -m pytest tests/ -v
 
 ```
 ├── .env.example            # Environment configuration template
-├── .gitignore              # Git ignore rules protecting keys and SQLite DBs
+├── .gitignore              # Git ignore rules protecting keys, DBs, and vault files
 ├── commands.py             # Slash command router and CLI handlers
-├── config.py               # System constants, model allowlists, and validation
+├── config.py               # System constants, model allowlists, and defaults
 ├── engine.py               # Multi-turn conversation orchestrator
 ├── exceptions.py           # Custom domain exception hierarchy
-├── llm_client.py           # NVIDIA NIM API wrapper with retry logic
+├── llm_client.py           # Multi-provider LLM client with retry logic and probes
 ├── logging_config.py       # Structured logging with SecretScrubbingFilter
 ├── main.py                 # Rich terminal REPL interface
-├── memory.py               # Priority-budgeted memory manager (P1-P4)
-├── persistence.py          # SQLite WAL session and global memory store
+├── memory.py               # Priority-budgeted dual-layer memory manager
+├── persistence.py          # SQLite WAL store for sessions, global memory & settings
 ├── pytest.ini              # Pytest configuration and custom markers
+├── README.md               # Complete project documentation and guide
 ├── requirements.txt        # Pinned dependency ranges
 ├── retry.py                # Exponential backoff with jitter
 ├── schemas.py              # Pydantic data schemas and models
-├── security.py             # Secret resolution, masking, and redaction
+├── security.py             # AES Fernet encryption, vault persistence & masking
 ├── server.py               # FastAPI web server and responsive dashboard
-└── tests/                  # Complete test suite
+└── tests/                  # Complete test suite (123 tests)
     ├── test_commands.py
     ├── test_engine.py
     ├── test_logging.py
