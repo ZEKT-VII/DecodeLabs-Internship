@@ -1,4 +1,4 @@
-"""FastAPI Local Web Server & Multi-Session Dashboard with In-App Settings & Encrypted Local Vault."""
+"""FastAPI Local Web Server & Multi-Session Dashboard with In-App Settings, Frontier Presets & Encrypted Local Vault."""
 
 from __future__ import annotations
 
@@ -28,8 +28,8 @@ from llm_client import LLMClient
 # Initialize FastAPI App
 app = FastAPI(
     title="Stateful Conversational Agent",
-    description="DecodeLabs Project 1 — In-App Encrypted Vault, Multi-Provider & Dual Memory Interface",
-    version="2.3.0",
+    description="DecodeLabs Project 1 — Frontier AI Presets, In-App Encrypted Vault & Dual Memory Interface",
+    version="2.4.0",
 )
 
 app.add_middleware(
@@ -380,7 +380,7 @@ HTML_CONTENT = """<!DOCTYPE html>
 <body class="bg-zinc-950 text-zinc-100 flex h-screen overflow-hidden antialiased">
 
   <!-- Sidebar -->
-  <aside class="w-80 bg-zinc-900/95 border-r border-zinc-800 flex flex-col justify-between hidden md:flex shrink-0">
+  <aside class="w-84 bg-zinc-900/95 border-r border-zinc-800 flex flex-col justify-between hidden md:flex shrink-0">
     <div class="flex-1 flex flex-col min-h-0">
       <!-- App Header -->
       <div class="p-4 border-b border-zinc-800/80 flex items-center justify-between">
@@ -506,69 +506,128 @@ HTML_CONTENT = """<!DOCTYPE html>
         </div>
       </div>
 
-      <!-- TAB 3: Settings & API Configuration View -->
+      <!-- TAB 3: Settings & Frontier Presets View -->
       <div id="tab-content-settings" class="flex-1 flex flex-col min-h-0 p-3 space-y-3 hidden overflow-y-auto custom-scrollbar">
         <!-- Settings Header -->
         <div class="bg-purple-950/20 border border-purple-800/30 rounded-xl p-3 text-xs space-y-1.5">
           <div class="flex items-center justify-between font-semibold text-purple-400">
-            <span class="flex items-center gap-1.5"><i class="fa-solid fa-shield-halved"></i> In-App API Settings</span>
+            <span class="flex items-center gap-1.5"><i class="fa-solid fa-shield-halved"></i> Frontier AI Settings</span>
             <span class="text-[10px] bg-purple-500/20 text-purple-300 px-1.5 py-0.2 rounded font-mono">AES Vault</span>
           </div>
           <p class="text-zinc-300 text-[11px] leading-relaxed">
-            Keys are encrypted using <b>local machine-bound AES Fernet encryption</b> and stored in your private database.
+            Configure any frontier model provider. Keys are encrypted locally using <b>AES Fernet</b> in SQLite.
           </p>
         </div>
 
-        <!-- Provider Presets -->
+        <!-- Frontier Provider Presets Grid -->
         <div class="space-y-1.5">
-          <label class="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block">Provider Presets</label>
+          <label class="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block">Frontier Presets</label>
           <div class="grid grid-cols-2 gap-1.5">
+            <!-- ChatGPT / OpenAI -->
             <button
               type="button"
-              onclick="applyProviderPreset('nvidia')"
-              class="p-2 rounded-xl bg-zinc-950/80 hover:bg-zinc-800 border border-zinc-800 text-left transition-all"
+              onclick="applyProviderPreset('openai')"
+              class="p-2 rounded-xl bg-zinc-950/80 hover:bg-zinc-800 border border-zinc-800 text-left transition-all group"
             >
               <div class="font-medium text-xs text-emerald-400 flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full bg-emerald-500"></span> NVIDIA NIM
+                <i class="fa-solid fa-bolt text-[10px] text-emerald-400"></i> OpenAI / ChatGPT
               </div>
-              <p class="text-[10px] text-zinc-500 mt-0.5 truncate">Llama 3.1, DeepSeek</p>
+              <p class="text-[10px] text-zinc-500 mt-0.5 truncate font-mono">gpt-4o, o1, o3-mini</p>
             </button>
+
+            <!-- Claude / Anthropic -->
             <button
               type="button"
-              onclick="applyProviderPreset('openrouter')"
-              class="p-2 rounded-xl bg-zinc-950/80 hover:bg-zinc-800 border border-zinc-800 text-left transition-all"
+              onclick="applyProviderPreset('claude')"
+              class="p-2 rounded-xl bg-zinc-950/80 hover:bg-zinc-800 border border-zinc-800 text-left transition-all group"
+            >
+              <div class="font-medium text-xs text-amber-400 flex items-center gap-1.5">
+                <i class="fa-solid fa-feather text-[10px] text-amber-400"></i> Anthropic Claude
+              </div>
+              <p class="text-[10px] text-zinc-500 mt-0.5 truncate font-mono">claude-3.7-sonnet</p>
+            </button>
+
+            <!-- DeepSeek -->
+            <button
+              type="button"
+              onclick="applyProviderPreset('deepseek')"
+              class="p-2 rounded-xl bg-zinc-950/80 hover:bg-zinc-800 border border-zinc-800 text-left transition-all group"
             >
               <div class="font-medium text-xs text-blue-400 flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full bg-blue-500"></span> OpenRouter
+                <i class="fa-solid fa-code text-[10px] text-blue-400"></i> DeepSeek Official
               </div>
-              <p class="text-[10px] text-zinc-500 mt-0.5 truncate">Gemini, Claude, Llama</p>
+              <p class="text-[10px] text-zinc-500 mt-0.5 truncate font-mono">deepseek-chat, R1</p>
             </button>
+
+            <!-- Alibaba Qwen -->
+            <button
+              type="button"
+              onclick="applyProviderPreset('qwen')"
+              class="p-2 rounded-xl bg-zinc-950/80 hover:bg-zinc-800 border border-zinc-800 text-left transition-all group"
+            >
+              <div class="font-medium text-xs text-violet-400 flex items-center gap-1.5">
+                <i class="fa-solid fa-dragon text-[10px] text-violet-400"></i> Alibaba Qwen
+              </div>
+              <p class="text-[10px] text-zinc-500 mt-0.5 truncate font-mono">qwen-max, qwen-2.5</p>
+            </button>
+
+            <!-- Google Gemini -->
             <button
               type="button"
               onclick="applyProviderPreset('gemini')"
-              class="p-2 rounded-xl bg-zinc-950/80 hover:bg-zinc-800 border border-zinc-800 text-left transition-all"
+              class="p-2 rounded-xl bg-zinc-950/80 hover:bg-zinc-800 border border-zinc-800 text-left transition-all group"
             >
               <div class="font-medium text-xs text-cyan-400 flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full bg-cyan-500"></span> Google Gemini
+                <i class="fa-brands fa-google text-[10px] text-cyan-400"></i> Google Gemini
               </div>
-              <p class="text-[10px] text-zinc-500 mt-0.5 truncate">Gemini 2.5 Flash / Pro</p>
+              <p class="text-[10px] text-zinc-500 mt-0.5 truncate font-mono">gemini-2.5-flash, pro</p>
             </button>
+
+            <!-- NVIDIA NIM -->
+            <button
+              type="button"
+              onclick="applyProviderPreset('nvidia')"
+              class="p-2 rounded-xl bg-zinc-950/80 hover:bg-zinc-800 border border-zinc-800 text-left transition-all group"
+            >
+              <div class="font-medium text-xs text-green-400 flex items-center gap-1.5">
+                <i class="fa-solid fa-microchip text-[10px] text-green-400"></i> NVIDIA NIM
+              </div>
+              <p class="text-[10px] text-zinc-500 mt-0.5 truncate font-mono">llama-3.1, deepseek</p>
+            </button>
+
+            <!-- Groq LPU -->
             <button
               type="button"
               onclick="applyProviderPreset('groq')"
-              class="p-2 rounded-xl bg-zinc-950/80 hover:bg-zinc-800 border border-zinc-800 text-left transition-all"
+              class="p-2 rounded-xl bg-zinc-950/80 hover:bg-zinc-800 border border-zinc-800 text-left transition-all group"
             >
-              <div class="font-medium text-xs text-amber-400 flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full bg-amber-500"></span> Groq
+              <div class="font-medium text-xs text-orange-400 flex items-center gap-1.5">
+                <i class="fa-solid fa-gauge-high text-[10px] text-orange-400"></i> Groq LPU
               </div>
-              <p class="text-[10px] text-zinc-500 mt-0.5 truncate">Ultra-fast Llama 3.3</p>
+              <p class="text-[10px] text-zinc-500 mt-0.5 truncate font-mono">llama-3.3-70b</p>
+            </button>
+
+            <!-- OpenRouter -->
+            <button
+              type="button"
+              onclick="applyProviderPreset('openrouter')"
+              class="p-2 rounded-xl bg-zinc-950/80 hover:bg-zinc-800 border border-zinc-800 text-left transition-all group"
+            >
+              <div class="font-medium text-xs text-indigo-400 flex items-center gap-1.5">
+                <i class="fa-solid fa-globe text-[10px] text-indigo-400"></i> OpenRouter
+              </div>
+              <p class="text-[10px] text-zinc-500 mt-0.5 truncate font-mono">Universal Multi-LLM</p>
             </button>
           </div>
         </div>
 
         <!-- Settings Form -->
         <form onsubmit="handleSaveSettings(event)" class="bg-zinc-950/70 border border-zinc-800 rounded-xl p-3 space-y-3">
-          <!-- Provider Input (hidden/display) -->
+          <!-- Active Provider Indicator -->
+          <div class="flex items-center justify-between pb-1 border-b border-zinc-800/80">
+            <span class="text-[11px] font-medium text-zinc-400">Active Provider</span>
+            <span id="active-provider-badge" class="text-[10px] bg-zinc-800 text-cyan-400 font-mono px-2 py-0.5 rounded uppercase font-semibold">NVIDIA</span>
+          </div>
           <input type="hidden" id="settings-provider-input" value="nvidia" />
 
           <!-- Base URL -->
@@ -594,7 +653,8 @@ HTML_CONTENT = """<!DOCTYPE html>
               required
             />
             <!-- Model suggestions -->
-            <div id="model-suggestions" class="flex flex-wrap gap-1 pt-1">
+            <p class="text-[10px] text-zinc-500 pt-0.5">Top Model Suggestions (click to apply):</p>
+            <div id="model-suggestions" class="flex flex-wrap gap-1 pt-0.5">
               <!-- Populated by JS based on provider -->
             </div>
           </div>
@@ -679,7 +739,7 @@ HTML_CONTENT = """<!DOCTYPE html>
       <div class="flex items-center justify-between text-zinc-400 text-[11px]">
         <span class="flex items-center gap-1.5">
           <span id="active-status-dot" class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span id="active-model-display" class="font-mono text-zinc-300 truncate max-w-[160px]">meta/llama-3.1-8b</span>
+          <span id="active-model-display" class="font-mono text-zinc-300 truncate max-w-[150px]">meta/llama-3.1-8b</span>
         </span>
         <span id="active-provider-display" class="text-zinc-500 text-[10px] uppercase font-semibold">NVIDIA</span>
       </div>
@@ -809,7 +869,7 @@ HTML_CONTENT = """<!DOCTYPE html>
           <p class="font-semibold text-cyan-400">Stateful Conversational Agent Ready</p>
           <p class="text-zinc-300 leading-relaxed">
             All conversations are isolated in dedicated sessions and persisted automatically in SQLite.
-            Open the <b class="text-purple-400">Settings</b> tab in the sidebar to configure any OpenAI-compatible endpoint with encrypted local key storage!
+            Open the <b class="text-purple-400">Settings</b> tab in the sidebar to configure any frontier model (ChatGPT, Claude, DeepSeek, Qwen, Gemini, Groq, NVIDIA).
           </p>
         </div>
       </div>
@@ -852,29 +912,61 @@ HTML_CONTENT = """<!DOCTYPE html>
     let currentSettings = {};
 
     const PRESETS = {
-      nvidia: {
-        provider: 'nvidia',
-        base_url: 'https://integrate.api.nvidia.com/v1',
-        model: 'meta/llama-3.1-8b-instruct',
-        models: ['meta/llama-3.1-8b-instruct', 'deepseek-ai/deepseek-v4-flash-0731', 'meta/llama-3.3-70b-instruct']
+      openai: {
+        provider: 'openai',
+        name: 'OpenAI (ChatGPT)',
+        base_url: 'https://api.openai.com/v1',
+        model: 'gpt-4o',
+        models: ['gpt-4o', 'gpt-4o-mini', 'o1', 'o3-mini', 'gpt-4-turbo']
       },
-      openrouter: {
-        provider: 'openrouter',
+      claude: {
+        provider: 'claude',
+        name: 'Anthropic (Claude)',
         base_url: 'https://openrouter.ai/api/v1',
-        model: 'google/gemini-2.0-flash-exp:free',
-        models: ['google/gemini-2.0-flash-exp:free', 'meta-llama/llama-3.3-70b-instruct:free', 'deepseek/deepseek-chat']
+        model: 'anthropic/claude-3.7-sonnet',
+        models: ['anthropic/claude-3.7-sonnet', 'anthropic/claude-3.5-sonnet', 'anthropic/claude-3.5-haiku', 'anthropic/claude-3-opus']
+      },
+      deepseek: {
+        provider: 'deepseek',
+        name: 'DeepSeek Official',
+        base_url: 'https://api.deepseek.com/v1',
+        model: 'deepseek-chat',
+        models: ['deepseek-chat', 'deepseek-reasoner']
+      },
+      qwen: {
+        provider: 'qwen',
+        name: 'Alibaba Qwen',
+        base_url: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
+        model: 'qwen-max',
+        models: ['qwen-max', 'qwen-plus', 'qwen-turbo', 'qwen-2.5-72b-instruct', 'qwq-32b']
       },
       gemini: {
         provider: 'gemini',
+        name: 'Google Gemini',
         base_url: 'https://generativelanguage.googleapis.com/v1beta/openai/',
         model: 'gemini-2.5-flash',
-        models: ['gemini-2.5-flash', 'gemini-1.5-pro', 'gemini-1.5-flash']
+        models: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash', 'gemini-1.5-pro']
+      },
+      nvidia: {
+        provider: 'nvidia',
+        name: 'NVIDIA NIM',
+        base_url: 'https://integrate.api.nvidia.com/v1',
+        model: 'meta/llama-3.1-8b-instruct',
+        models: ['meta/llama-3.1-8b-instruct', 'deepseek-ai/deepseek-v4-flash-0731', 'meta/llama-3.3-70b-instruct', 'mistralai/mistral-large-2-instruct']
       },
       groq: {
         provider: 'groq',
+        name: 'Groq LPU',
         base_url: 'https://api.groq.com/openai/v1',
         model: 'llama-3.3-70b-versatile',
-        models: ['llama-3.3-70b-versatile', 'llama3-8b-8192', 'mixtral-8x7b-32768']
+        models: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768', 'deepseek-r1-distill-llama-70b']
+      },
+      openrouter: {
+        provider: 'openrouter',
+        name: 'OpenRouter',
+        base_url: 'https://openrouter.ai/api/v1',
+        model: 'google/gemini-2.0-flash-exp:free',
+        models: ['google/gemini-2.0-flash-exp:free', 'anthropic/claude-3.7-sonnet', 'deepseek/deepseek-r1', 'meta-llama/llama-3.3-70b-instruct:free']
       }
     };
 
@@ -908,10 +1000,12 @@ HTML_CONTENT = """<!DOCTYPE html>
         if (!resp.ok) return;
         currentSettings = await resp.json();
 
-        document.getElementById('settings-provider-input').value = currentSettings.provider || 'nvidia';
+        const prov = currentSettings.provider || 'nvidia';
+        document.getElementById('settings-provider-input').value = prov;
         document.getElementById('settings-baseurl-input').value = currentSettings.base_url || 'https://integrate.api.nvidia.com/v1';
         document.getElementById('settings-model-input').value = currentSettings.model || 'meta/llama-3.1-8b-instruct';
-        
+        document.getElementById('active-provider-badge').textContent = prov.toUpperCase();
+
         const badge = document.getElementById('key-configured-badge');
         if (currentSettings.is_configured) {
           badge.textContent = `✓ Saved (${currentSettings.masked_key})`;
@@ -921,7 +1015,7 @@ HTML_CONTENT = """<!DOCTYPE html>
           badge.className = 'text-[10px] text-amber-400 font-mono';
         }
 
-        renderModelSuggestions(currentSettings.provider || 'nvidia');
+        renderModelSuggestions(prov);
         updateHeaderAndFooterConfig(currentSettings);
       } catch (err) {
         console.error('Failed to load settings:', err);
@@ -934,6 +1028,7 @@ HTML_CONTENT = """<!DOCTYPE html>
       document.getElementById('settings-provider-input').value = p.provider;
       document.getElementById('settings-baseurl-input').value = p.base_url;
       document.getElementById('settings-model-input').value = p.model;
+      document.getElementById('active-provider-badge').textContent = p.provider.toUpperCase();
       renderModelSuggestions(providerKey);
     }
 
@@ -944,7 +1039,7 @@ HTML_CONTENT = """<!DOCTYPE html>
         <button
           type="button"
           onclick="document.getElementById('settings-model-input').value = '${m}'"
-          class="px-1.5 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded text-[10px] font-mono transition-colors"
+          class="px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded text-[10px] font-mono transition-colors border border-zinc-700/60"
         >
           ${m}
         </button>

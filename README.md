@@ -10,12 +10,16 @@
 ### 🔒 In-App Settings & Encrypted Local Vault
 - **Zero `.env` Configuration Required**: End-users can configure API keys and model parameters directly from the in-app **Settings** tab.
 - **Machine-Bound AES Fernet Encryption**: API keys are securely encrypted on disk using AES-128-CBC with HMAC-SHA256 authenticated encryption (`.vault.key`, automatically gitignored) and stored in the SQLite database.
-- **Multi-Provider Presets**:
-  - 🟢 **NVIDIA NIM** (Default: `meta/llama-3.1-8b-instruct`, `deepseek-ai/deepseek-v4-flash-0731`, `meta/llama-3.3-70b-instruct`)
-  - 🟣 **OpenRouter** (`google/gemini-2.0-flash-exp:free`, `meta-llama/llama-3.3-70b-instruct:free`, `deepseek/deepseek-chat`)
-  - 🔵 **Google Gemini (OpenAI Compat)** (`gemini-2.5-flash`, `gemini-1.5-pro`)
-  - 🟠 **Groq** (`llama-3.3-70b-versatile`, `mixtral-8x7b-32768`)
-  - ⚪ **Custom OpenAI-Compatible** (Local Ollama, LM Studio, vLLM, Azure OpenAI)
+- **Frontier AI Provider Presets (with Official Endpoints & Top Model Suggestions)**:
+  - 🟢 **OpenAI (ChatGPT)** (`https://api.openai.com/v1`): `gpt-4o`, `gpt-4o-mini`, `o1`, `o3-mini`, `gpt-4-turbo`
+  - 🟣 **Anthropic (Claude)** (`https://openrouter.ai/api/v1`): `anthropic/claude-3.7-sonnet`, `anthropic/claude-3.5-sonnet`, `anthropic/claude-3.5-haiku`, `anthropic/claude-3-opus`
+  - 🔵 **DeepSeek (Official)** (`https://api.deepseek.com/v1`): `deepseek-chat` (DeepSeek-V3), `deepseek-reasoner` (DeepSeek-R1)
+  - 🟣 **Alibaba Qwen (DashScope)** (`https://dashscope-intl.aliyuncs.com/compatible-mode/v1`): `qwen-max`, `qwen-plus`, `qwen-turbo`, `qwen-2.5-72b-instruct`, `qwq-32b`
+  - 🔵 **Google Gemini (OpenAI Compat)** (`https://generativelanguage.googleapis.com/v1beta/openai/`): `gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-2.0-flash`, `gemini-1.5-pro`
+  - 🟢 **NVIDIA NIM (Free Dev Endpoints)** (`https://integrate.api.nvidia.com/v1`): `meta/llama-3.1-8b-instruct`, `deepseek-ai/deepseek-v4-flash-0731`, `meta/llama-3.3-70b-instruct`
+  - 🟠 **Groq (Ultra-Fast LPU)** (`https://api.groq.com/openai/v1`): `llama-3.3-70b-versatile`, `llama-3.1-8b-instant`, `deepseek-r1-distill-llama-70b`
+  - 🌐 **OpenRouter (Universal)** (`https://openrouter.ai/api/v1`): Access 200+ models with free and pay-as-you-go tiers
+  - ⚪ **Custom OpenAI-Compatible**: Local Ollama (`http://localhost:11434/v1`), LM Studio (`http://localhost:1234/v1`), vLLM, Azure OpenAI
 - **🔌 Live Connection Probe**: 1-click test button probes the endpoint and returns live response latency ($ms$) and connectivity diagnostics before saving.
 
 ---
