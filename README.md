@@ -106,6 +106,36 @@ python main.py
 
 ---
 
+## ☁️ Live Cloud Deployment
+
+### Option A: 1-Click GitHub Codespaces (Run Live in Browser)
+You can run this entire agent in your browser without installing Python locally:
+1. Click **Code** ➔ **Codespaces** ➔ **Create codespace on main** on the [GitHub Repository](https://github.com/ZEKT-VII/stateful-conversational-agent).
+2. The `.devcontainer` will automatically install dependencies and launch the web server.
+3. Click the forwarded port **8000** popup to open your live web dashboard.
+
+---
+
+### Option B: 1-Click Render / Railway Cloud Deployment
+This repository includes a `render.yaml` blueprint and `Procfile` for instant continuous deployment:
+1. Create a free account at [Render.com](https://render.com) or [Railway.app](https://railway.app).
+2. Click **New** ➔ **Web Service** ➔ Select your GitHub repo `ZEKT-VII/stateful-conversational-agent`.
+3. Render will auto-detect the `render.yaml` blueprint and deploy your live public URL!
+
+---
+
+### Option C: Docker Container Deployment
+```bash
+# Build Docker image
+docker build -t stateful-conversational-agent .
+
+# Run container on port 8000
+docker run -p 8000:8000 stateful-conversational-agent
+```
+Navigate to `http://localhost:8000` to interact with your agent.
+
+---
+
 ## 🧪 Test Suite
 
 The project includes an extensive **123 automated test suite** with 100% pass rate:
