@@ -3,6 +3,12 @@
 > **DecodeLabs Industrial Generative AI Project 1**  
 > *Production-Hardened Multi-Turn Conversational AI Agent featuring Priority-Budgeted Memory, In-App Encrypted Credentials Vault, Multi-Provider Support, and an Interactive Dark-Mode Web Dashboard.*
 
+[![Live Firebase Web App](https://img.shields.io/badge/Live_Demo-Firebase_Hosting-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)](https://stateful-agent-ai-2026.web.app)
+[![GitHub Repository](https://img.shields.io/badge/GitHub-Repository-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/ZEKT-VII/stateful-conversational-agent)
+[![Tests Passing](https://img.shields.io/badge/Tests-123_Passing-brightgreen?style=for-the-badge&logo=pytest&logoColor=white)](https://github.com/ZEKT-VII/stateful-conversational-agent)
+
+**🔥 Live Firebase App URL**: [https://stateful-agent-ai-2026.web.app](https://stateful-agent-ai-2026.web.app)
+
 ---
 
 ## 🌟 Key Features
@@ -108,7 +114,15 @@ python main.py
 
 ## ☁️ Live Cloud Deployment
 
-### Option A: 1-Click GitHub Codespaces (Run Live in Browser)
+### Option A: 🔥 Firebase Hosting (Live, $0 Cost, Global CDN)
+The application is deployed live on Google Firebase Hosting (Spark Plan, 100% Free Forever):
+- **Live URL**: **[https://stateful-agent-ai-2026.web.app](https://stateful-agent-ai-2026.web.app)**
+- **Backup URL**: **[https://stateful-agent-ai-2026.firebaseapp.com](https://stateful-agent-ai-2026.firebaseapp.com)**
+- Fully supports all **Frontier Model Presets** (OpenAI, Claude, DeepSeek, Qwen, Gemini, Groq, OpenRouter) with client-side encrypted local memory and zero server costs.
+
+---
+
+### Option B: 1-Click GitHub Codespaces (Run Live in Browser)
 You can run this entire agent in your browser without installing Python locally:
 1. Click **Code** ➔ **Codespaces** ➔ **Create codespace on main** on the [GitHub Repository](https://github.com/ZEKT-VII/stateful-conversational-agent).
 2. The `.devcontainer` will automatically install dependencies and launch the web server.
@@ -116,7 +130,7 @@ You can run this entire agent in your browser without installing Python locally:
 
 ---
 
-### Option B: 1-Click Render / Railway Cloud Deployment
+### Option C: 1-Click Render / Railway Cloud Deployment
 This repository includes a `render.yaml` blueprint and `Procfile` for instant continuous deployment:
 1. Create a free account at [Render.com](https://render.com) or [Railway.app](https://railway.app).
 2. Click **New** ➔ **Web Service** ➔ Select your GitHub repo `ZEKT-VII/stateful-conversational-agent`.
@@ -124,7 +138,7 @@ This repository includes a `render.yaml` blueprint and `Procfile` for instant co
 
 ---
 
-### Option C: Docker Container Deployment
+### Option D: Docker Container Deployment
 ```bash
 # Build Docker image
 docker build -t stateful-conversational-agent .

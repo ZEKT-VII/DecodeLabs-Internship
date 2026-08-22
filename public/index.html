@@ -1,0 +1,1085 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stateful Conversational Agent — Firebase Live Edition</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+    pre, code { font-family: 'JetBrains Mono', monospace; }
+    .prose pre { background-color: #18181b; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; color: #e4e4e7; margin: 0.75rem 0; font-size: 0.875rem; border: 1px solid #27272a; }
+    .prose p { margin-bottom: 0.5rem; }
+    .prose ul, .prose ol { margin-left: 1.25rem; margin-bottom: 0.5rem; }
+    .prose code:not(pre code) { background-color: #27272a; padding: 0.125rem 0.375rem; border-radius: 0.25rem; color: #38bdf8; font-size: 0.875rem; }
+    .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #27272a; border-radius: 3px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
+    select { background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2371717a' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e"); background-position: right 0.5rem center; background-repeat: no-repeat; background-size: 1.5em 1.5em; padding-right: 2rem; -webkit-appearance: none; -moz-appearance: none; appearance: none; }
+  </style>
+</head>
+<body class="bg-zinc-950 text-zinc-100 flex h-screen overflow-hidden antialiased">
+
+  <!-- Sidebar -->
+  <aside class="w-80 bg-zinc-900/95 border-r border-zinc-800 flex flex-col justify-between hidden md:flex shrink-0">
+    <div class="flex-1 flex flex-col min-h-0">
+      <!-- App Header -->
+      <div class="p-4 border-b border-zinc-800/80 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+            <i class="fa-solid fa-brain text-white text-lg"></i>
+          </div>
+          <div>
+            <h1 class="font-bold text-sm text-zinc-100 leading-tight">Stateful Agent</h1>
+            <p class="text-[11px] text-zinc-400">Firebase Live Edition · $0 Cost</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs: Chats vs Global Memory vs Settings -->
+      <div class="px-3 pt-3">
+        <div class="grid grid-cols-3 gap-1 bg-zinc-950 p-1 rounded-xl border border-zinc-800 text-xs font-medium">
+          <button
+            id="tab-btn-chats"
+            onclick="switchSidebarTab('chats')"
+            class="py-1.5 px-2 rounded-lg transition-all flex items-center justify-center gap-1 bg-zinc-800 text-white shadow-sm"
+          >
+            <i class="fa-regular fa-message text-xs text-cyan-400"></i>
+            <span>Chats</span>
+          </button>
+          <button
+            id="tab-btn-global"
+            onclick="switchSidebarTab('global')"
+            class="py-1.5 px-2 rounded-lg transition-all flex items-center justify-center gap-1 text-zinc-400 hover:text-zinc-200"
+          >
+            <i class="fa-solid fa-earth-americas text-xs text-amber-400"></i>
+            <span>Global</span>
+          </button>
+          <button
+            id="tab-btn-settings"
+            onclick="switchSidebarTab('settings')"
+            class="py-1.5 px-2 rounded-lg transition-all flex items-center justify-center gap-1 text-zinc-400 hover:text-zinc-200"
+          >
+            <i class="fa-solid fa-gear text-xs text-purple-400"></i>
+            <span>Settings</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- TAB 1: Chats List View -->
+      <div id="tab-content-chats" class="flex-1 flex flex-col min-h-0">
+        <!-- New Chat Button -->
+        <div class="p-3 border-b border-zinc-800/40">
+          <button
+            onclick="createNewSession()"
+            class="w-full py-2.5 px-4 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-xl font-medium text-xs shadow-md shadow-cyan-600/20 transition-all flex items-center justify-center gap-2 group"
+          >
+            <i class="fa-solid fa-plus text-xs group-hover:rotate-90 transition-transform"></i>
+            <span>New Chat Session</span>
+          </button>
+        </div>
+
+        <!-- Session List (Scrollable) -->
+        <div class="flex-1 overflow-y-auto p-3 space-y-1.5 custom-scrollbar min-h-0">
+          <div class="flex items-center justify-between px-2 py-1 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">
+            <span>Conversations</span>
+            <span id="total-sessions-badge" class="text-[10px] bg-zinc-800 text-zinc-400 px-1.5 py-0.2 rounded font-mono">0</span>
+          </div>
+          <div id="session-list" class="space-y-1">
+            <div class="text-xs text-zinc-500 italic p-3 text-center">Loading conversations...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 2: Global Memory View -->
+      <div id="tab-content-global" class="flex-1 flex flex-col min-h-0 p-3 space-y-3 hidden">
+        <div class="bg-amber-950/20 border border-amber-800/30 rounded-xl p-3 text-xs space-y-1.5">
+          <div class="flex items-center gap-1.5 font-semibold text-amber-400">
+            <i class="fa-solid fa-earth-americas"></i>
+            <span>Global Memory Layer</span>
+          </div>
+          <p class="text-zinc-300 text-[11px] leading-relaxed">
+            Facts added here are <b>shared across all chat sessions</b> and automatically injected into every conversation's system context.
+          </p>
+        </div>
+
+        <form onsubmit="handleAddGlobalFact(event)" class="bg-zinc-950/70 border border-zinc-800 rounded-xl p-3 space-y-2.5">
+          <p class="text-[11px] font-medium text-zinc-400 uppercase tracking-wider">Add Global Fact</p>
+
+          <div class="space-y-1">
+            <label class="text-[10px] text-zinc-500 block">Template Preset:</label>
+            <select
+              onchange="handleGlobalPresetSelect(this)"
+              class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-zinc-300 focus:border-amber-500 focus:outline-none cursor-pointer"
+            >
+              <option value="">-- Choose a Preset Template --</option>
+              <option value="Tone|Concise, clear, and direct">Tone: Concise & direct</option>
+              <option value="Role|Generative AI Engineer">Role: Generative AI Engineer</option>
+              <option value="Preferred Language|Python 3.12+ / TypeScript">Language: Python 3.12+ / TypeScript</option>
+              <option value="Code Style|Strict typing, docstrings, clean architecture">Code Style: Strict typing & docstrings</option>
+            </select>
+          </div>
+
+          <input
+            id="global-key-input"
+            type="text"
+            placeholder="Key (e.g. Tone, Language, Role)..."
+            class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-zinc-100 placeholder-zinc-500 focus:border-amber-500 focus:outline-none"
+            required
+          />
+          <textarea
+            id="global-val-input"
+            rows="2"
+            placeholder="Value (e.g. Concise & technical, Python 3.12+, AI Engineer)..."
+            class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-zinc-100 placeholder-zinc-500 focus:border-amber-500 focus:outline-none resize-none"
+            required
+          ></textarea>
+
+          <button
+            type="submit"
+            class="w-full py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-medium shadow-sm transition-colors flex items-center justify-center gap-1.5"
+          >
+            <i class="fa-solid fa-thumbtack text-xs"></i>
+            <span>Save Global Fact</span>
+          </button>
+        </form>
+
+        <div class="flex-1 overflow-y-auto space-y-1.5 custom-scrollbar min-h-0">
+          <p class="text-[11px] font-medium text-zinc-500 uppercase tracking-wider px-1">Active Global Facts</p>
+          <div id="global-facts-list" class="space-y-1.5"></div>
+        </div>
+      </div>
+
+      <!-- TAB 3: Settings & Frontier Presets View -->
+      <div id="tab-content-settings" class="flex-1 flex flex-col min-h-0 p-3 space-y-3 hidden overflow-y-auto custom-scrollbar">
+        <div class="bg-purple-950/20 border border-purple-800/30 rounded-xl p-3 text-xs space-y-1.5">
+          <div class="flex items-center justify-between font-semibold text-purple-400">
+            <span class="flex items-center gap-1.5"><i class="fa-solid fa-shield-halved"></i> Frontier AI Settings</span>
+            <span class="text-[10px] bg-purple-500/20 text-purple-300 px-1.5 py-0.2 rounded font-mono">Local Vault</span>
+          </div>
+          <p class="text-zinc-300 text-[11px] leading-relaxed">
+            Keys are stored privately in your browser and used exclusively for direct OpenAI-compatible API calls.
+          </p>
+        </div>
+
+        <form onsubmit="handleSaveSettings(event)" class="bg-zinc-950/70 border border-zinc-800 rounded-xl p-3 space-y-3">
+          <div class="space-y-1">
+            <label class="text-[11px] font-semibold text-zinc-300 uppercase tracking-wider block">AI Provider Preset</label>
+            <select
+              id="settings-provider-select"
+              onchange="handleProviderSelectChange(this.value)"
+              class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-2 text-xs text-zinc-100 focus:border-purple-500 focus:outline-none cursor-pointer font-medium"
+            >
+              <option value="openrouter">🌐 OpenRouter (Universal 200+ Models)</option>
+              <option value="groq">🟠 Groq LPU (Ultra-Fast Llama 3.3)</option>
+              <option value="gemini">🔵 Google Gemini (Gemini 3.7 / 2.5 Flash)</option>
+              <option value="openai">🟢 OpenAI (GPT-5.6 / o4-mini / GPT-4o)</option>
+              <option value="claude">🟣 Anthropic Claude (Sonnet 5 / Opus 5)</option>
+              <option value="deepseek">🔵 DeepSeek Official (V4 Pro / Flash)</option>
+              <option value="qwen">🟣 Alibaba Qwen (Qwen3.8-Max / QwQ)</option>
+              <option value="nvidia">🟢 NVIDIA NIM (Developer Endpoints)</option>
+              <option value="custom">⚪ Custom OpenAI-Compatible (Ollama / Local)</option>
+            </select>
+          </div>
+
+          <input type="hidden" id="settings-provider-input" value="openrouter" />
+
+          <div class="space-y-1">
+            <label class="text-[11px] font-medium text-zinc-400">API Base URL</label>
+            <input
+              id="settings-baseurl-input"
+              type="text"
+              placeholder="https://openrouter.ai/api/v1"
+              class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 focus:border-purple-500 focus:outline-none font-mono"
+              required
+            />
+          </div>
+
+          <div class="space-y-1.5">
+            <label class="text-[11px] font-medium text-zinc-400">Top Model Suggestions</label>
+            <select
+              id="settings-model-select"
+              onchange="handleModelSelectChange(this.value)"
+              class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-purple-300 focus:border-purple-500 focus:outline-none cursor-pointer font-mono"
+            ></select>
+
+            <div class="space-y-1 pt-1">
+              <label class="text-[10px] text-zinc-500 block">Exact Model ID / Name:</label>
+              <input
+                id="settings-model-input"
+                type="text"
+                placeholder="google/gemini-2.0-flash-exp:free"
+                class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 focus:border-purple-500 focus:outline-none font-mono"
+                required
+              />
+            </div>
+          </div>
+
+          <div class="space-y-1">
+            <div class="flex justify-between items-center">
+              <label class="text-[11px] font-medium text-zinc-400">API Key</label>
+              <span id="key-configured-badge" class="text-[10px] text-zinc-500 font-mono">Status</span>
+            </div>
+            <div class="relative">
+              <input
+                id="settings-key-input"
+                type="password"
+                placeholder="Enter API key for selected provider..."
+                class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 pr-8 text-xs text-zinc-100 placeholder-zinc-600 focus:border-purple-500 focus:outline-none font-mono"
+              />
+              <button
+                type="button"
+                onclick="toggleKeyVisibility()"
+                class="absolute right-2 top-2 text-zinc-500 hover:text-zinc-300 text-xs"
+              >
+                <i id="key-visibility-icon" class="fa-solid fa-eye"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="space-y-2 pt-1">
+            <button
+              type="button"
+              id="btn-test-connection"
+              onclick="handleTestConnection()"
+              class="w-full py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5"
+            >
+              <i class="fa-solid fa-plug text-xs text-cyan-400"></i>
+              <span>Test Connection</span>
+            </button>
+            
+            <button
+              type="submit"
+              class="w-full py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-lg text-xs font-semibold shadow-md shadow-purple-600/20 transition-all flex items-center justify-center gap-1.5"
+            >
+              <i class="fa-solid fa-lock text-xs"></i>
+              <span>Save Settings</span>
+            </button>
+          </div>
+
+          <div id="test-result-box" class="hidden p-2.5 rounded-lg text-xs border"></div>
+        </form>
+      </div>
+
+      <!-- Telemetry Card -->
+      <div class="p-3 border-t border-zinc-800/80 bg-zinc-950/40 space-y-2.5 shrink-0">
+        <div class="bg-zinc-900/90 border border-zinc-800/80 rounded-xl p-3 space-y-2">
+          <div class="flex justify-between items-center text-xs">
+            <span class="text-zinc-400 flex items-center gap-1.5 text-[11px] font-medium"><i class="fa-solid fa-gauge text-cyan-400"></i> Context Headroom</span>
+            <span id="token-ratio" class="font-mono text-zinc-300 text-[11px]">0 / 8,192</span>
+          </div>
+          <div class="w-full bg-zinc-800 rounded-full h-1.5 overflow-hidden">
+            <div id="token-bar" class="bg-gradient-to-r from-cyan-500 to-blue-500 h-1.5 rounded-full transition-all duration-300" style="width: 2%"></div>
+          </div>
+          <div class="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-zinc-800/60 font-mono text-[11px]">
+            <div>
+              <span class="text-zinc-500 block text-[9px] uppercase tracking-wider">Session Turns</span>
+              <span id="stat-turns" class="text-zinc-200 font-semibold">0</span>
+            </div>
+            <div>
+              <span class="text-zinc-500 block text-[9px] uppercase tracking-wider">Global Memory</span>
+              <span id="stat-global-count" class="text-amber-400 font-semibold">0</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Active Model & API Status Footer -->
+    <div class="p-3 border-t border-zinc-800/80 bg-zinc-950/90 text-xs shrink-0">
+      <div class="flex items-center justify-between text-zinc-400 text-[11px]">
+        <span class="flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span id="active-model-display" class="font-mono text-zinc-300 truncate max-w-[150px]">google/gemini-2.0-flash</span>
+        </span>
+        <span id="active-provider-display" class="text-zinc-500 text-[10px] uppercase font-semibold">OPENROUTER</span>
+      </div>
+      <div class="mt-1 text-[10px] text-zinc-500 font-mono truncate" id="session-id-display">Firebase Hosting Live</div>
+    </div>
+  </aside>
+
+  <!-- Main Chat Area -->
+  <main class="flex-1 flex flex-col bg-zinc-950 overflow-hidden min-w-0 relative">
+    <!-- Top Navigation Bar -->
+    <header class="h-14 border-b border-zinc-800/80 px-6 flex items-center justify-between bg-zinc-900/50 backdrop-blur-md shrink-0">
+      <div class="flex items-center space-x-3 min-w-0">
+        <div class="truncate">
+          <h2 id="active-chat-title" class="text-sm font-semibold text-zinc-200 truncate">Current Conversation</h2>
+          <p id="active-chat-meta" class="text-[11px] text-zinc-500 font-mono truncate">Ready to chat</p>
+        </div>
+      </div>
+      <div class="flex items-center space-x-2 text-xs">
+        <button
+          onclick="toggleLocalMemoryDrawer()"
+          class="px-3 py-1.5 bg-emerald-950/40 border border-emerald-500/30 hover:bg-emerald-900/50 text-emerald-300 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 shadow-sm"
+          title="Manage Pinned Memory for this Conversation"
+        >
+          <i class="fa-solid fa-thumbtack text-emerald-400"></i>
+          <span>Local Memory</span>
+          <span id="local-count-badge" class="bg-emerald-500/20 text-emerald-300 px-1.5 py-0.2 rounded-full text-[10px] font-mono">0</span>
+        </button>
+
+        <button
+          onclick="clearSessionRAM()"
+          class="px-2.5 py-1.5 bg-zinc-800/60 hover:bg-zinc-800 text-zinc-300 rounded-lg text-xs transition-colors flex items-center gap-1.5"
+          title="Clear In-Memory Rolling Window"
+        >
+          <i class="fa-solid fa-broom text-amber-400"></i>
+          <span class="hidden sm:inline">Clear RAM</span>
+        </button>
+
+        <button
+          onclick="deleteActiveSession()"
+          class="px-2.5 py-1.5 bg-zinc-800/60 hover:bg-red-950/40 hover:text-red-400 text-zinc-300 rounded-lg text-xs transition-colors flex items-center gap-1.5"
+          title="Delete This Chat"
+        >
+          <i class="fa-solid fa-trash text-red-400"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- Slide-over Drawer for Local Memory -->
+    <div
+      id="local-memory-drawer"
+      class="absolute top-14 right-0 bottom-0 w-84 bg-zinc-900/95 border-l border-zinc-800 p-4 shadow-2xl backdrop-blur-md flex flex-col justify-between transform translate-x-full transition-transform duration-300 z-30 overflow-hidden"
+    >
+      <div class="flex-1 flex flex-col min-h-0 space-y-3">
+        <div class="flex items-center justify-between pb-2 border-b border-zinc-800">
+          <div class="flex items-center gap-2 text-emerald-400 font-semibold text-sm">
+            <i class="fa-solid fa-thumbtack"></i>
+            <span>Local Session Memory</span>
+          </div>
+          <button onclick="toggleLocalMemoryDrawer()" class="text-zinc-500 hover:text-zinc-300 p-1">
+            <i class="fa-solid fa-xmark text-sm"></i>
+          </button>
+        </div>
+
+        <p class="text-[11px] text-zinc-400 leading-relaxed">
+          Facts pinned here apply <b>only to this active chat session</b> and survive context window pruning.
+        </p>
+
+        <form onsubmit="handleAddLocalFact(event)" class="bg-zinc-950/80 border border-zinc-800 rounded-xl p-3 space-y-2.5 shrink-0">
+          <p class="text-[11px] font-medium text-zinc-400 uppercase tracking-wider">Pin Session Fact</p>
+          <input
+            id="local-key-input"
+            type="text"
+            placeholder="Key (e.g. Topic, Goal, Codebase)..."
+            class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-zinc-100 placeholder-zinc-500 focus:border-emerald-500 focus:outline-none"
+            required
+          />
+          <textarea
+            id="local-val-input"
+            rows="2"
+            placeholder="Value (e.g. Building Project 1, React + FastAPI)..."
+            class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-zinc-100 placeholder-zinc-500 focus:border-emerald-500 focus:outline-none resize-none"
+            required
+          ></textarea>
+          <button
+            type="submit"
+            class="w-full py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium shadow-sm transition-colors flex items-center justify-center gap-1.5"
+          >
+            <i class="fa-solid fa-thumbtack text-xs"></i>
+            <span>Pin to This Chat</span>
+          </button>
+        </form>
+
+        <div class="flex-1 overflow-y-auto space-y-1.5 custom-scrollbar min-h-0">
+          <p class="text-[11px] font-medium text-zinc-500 uppercase tracking-wider px-1">Pinned in this Session</p>
+          <div id="local-facts-list" class="space-y-1.5"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Message Scroll Area -->
+    <div id="chat-messages" class="flex-1 overflow-y-auto p-6 space-y-5 custom-scrollbar min-h-0">
+      <div id="welcome-message" class="flex items-start space-x-3 max-w-3xl">
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-cyan-600 to-blue-600 flex items-center justify-center text-white shrink-0 mt-0.5 shadow-md shadow-cyan-600/20">
+          <i class="fa-solid fa-robot text-sm"></i>
+        </div>
+        <div class="bg-zinc-900 border border-zinc-800 rounded-2xl rounded-tl-sm px-4 py-3.5 text-sm text-zinc-200 space-y-2 shadow-sm">
+          <p class="font-semibold text-cyan-400">Stateful Agent — Firebase Live Edition</p>
+          <p class="text-zinc-300 leading-relaxed">
+            Welcome to the live Firebase hosted edition! Open <b class="text-purple-400">Settings</b> in the sidebar to configure your OpenAI-compatible API key (OpenRouter, Groq, Google Gemini, OpenAI, Claude, DeepSeek). All conversations and memory tiers persist locally in your browser with zero server costs!
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Input Bar -->
+    <footer class="p-4 border-t border-zinc-800/80 bg-zinc-900/30 shrink-0">
+      <form id="chat-form" onsubmit="handleSend(event)" class="max-w-4xl mx-auto flex items-end space-x-3">
+        <div class="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 focus-within:border-cyan-500 focus-within:ring-1 focus-within:ring-cyan-500/50 transition-all flex items-center space-x-2">
+          <textarea
+            id="message-input"
+            rows="1"
+            placeholder="Type your message here..."
+            class="w-full bg-transparent text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none resize-none leading-relaxed"
+            onkeydown="handleKeyDown(event)"
+          ></textarea>
+        </div>
+        <button
+          type="submit"
+          id="send-btn"
+          class="h-11 px-4 bg-cyan-600 hover:bg-cyan-500 disabled:bg-zinc-800 disabled:text-zinc-600 text-white rounded-xl font-medium text-sm transition-colors flex items-center justify-center shadow-lg shadow-cyan-600/20 shrink-0"
+        >
+          <i class="fa-solid fa-paper-plane text-xs mr-1.5"></i> Send
+        </button>
+      </form>
+      <div class="max-w-4xl mx-auto flex justify-between items-center mt-2 px-1 text-[11px] text-zinc-500">
+        <span>Press <kbd class="px-1.5 py-0.5 bg-zinc-800 rounded text-zinc-400 font-mono text-[10px]">Enter</kbd> to send, <kbd class="px-1.5 py-0.5 bg-zinc-800 rounded text-zinc-400 font-mono text-[10px]">Shift+Enter</kbd> for newline</span>
+        <span id="live-latency" class="font-mono">Ready</span>
+      </div>
+    </footer>
+  </main>
+
+  <script>
+    // State & Storage
+    let sessions = JSON.parse(localStorage.getItem('fb_chat_sessions') || '[]');
+    let activeSessionId = localStorage.getItem('fb_active_session_id') || null;
+    let globalFacts = JSON.parse(localStorage.getItem('fb_global_facts') || '[]');
+    let settings = JSON.parse(localStorage.getItem('fb_settings') || JSON.stringify({
+      provider: 'openrouter',
+      base_url: 'https://openrouter.ai/api/v1',
+      model: 'google/gemini-2.0-flash-exp:free',
+      api_key: ''
+    }));
+
+    const PRESETS = {
+      openrouter: {
+        provider: 'openrouter',
+        base_url: 'https://openrouter.ai/api/v1',
+        model: 'google/gemini-2.0-flash-exp:free',
+        models: ['google/gemini-2.0-flash-exp:free', 'anthropic/claude-sonnet-5', 'openai/gpt-5.6-sol', 'deepseek/deepseek-v4-pro', 'meta-llama/llama-3.3-70b-instruct:free']
+      },
+      groq: {
+        provider: 'groq',
+        base_url: 'https://api.groq.com/openai/v1',
+        model: 'llama-3.3-70b-versatile',
+        models: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'deepseek-r1-distill-llama-70b', 'mixtral-8x7b-32768']
+      },
+      gemini: {
+        provider: 'gemini',
+        base_url: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+        model: 'gemini-3.7-flash',
+        models: ['gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.1-pro', 'gemini-2.5-flash', 'gemini-2.5-pro']
+      },
+      openai: {
+        provider: 'openai',
+        base_url: 'https://api.openai.com/v1',
+        model: 'gpt-5.6-sol',
+        models: ['gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna', 'o4-mini', 'o3', 'gpt-4.5-preview', 'gpt-4o', 'gpt-4o-mini']
+      },
+      claude: {
+        provider: 'claude',
+        base_url: 'https://openrouter.ai/api/v1',
+        model: 'anthropic/claude-sonnet-5',
+        models: ['anthropic/claude-opus-5', 'anthropic/claude-sonnet-5', 'anthropic/claude-fable-5', 'anthropic/claude-haiku-4.5', 'anthropic/claude-3.7-sonnet']
+      },
+      deepseek: {
+        provider: 'deepseek',
+        base_url: 'https://api.deepseek.com/v1',
+        model: 'deepseek-v4-pro',
+        models: ['deepseek-v4-pro', 'deepseek-v4-flash', 'deepseek-chat', 'deepseek-reasoner']
+      },
+      qwen: {
+        provider: 'qwen',
+        base_url: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
+        model: 'qwen3.8-max',
+        models: ['qwen3.8-max', 'qwen-max', 'qwen-plus', 'qwen-turbo', 'qwq-32b', 'qwen-2.5-72b-instruct']
+      },
+      nvidia: {
+        provider: 'nvidia',
+        base_url: 'https://integrate.api.nvidia.com/v1',
+        model: 'meta/llama-3.1-8b-instruct',
+        models: ['meta/llama-3.1-8b-instruct', 'deepseek-ai/deepseek-v4-flash-0731', 'meta/llama-3.3-70b-instruct', 'mistralai/mistral-large-2411']
+      },
+      custom: {
+        provider: 'custom',
+        base_url: 'http://localhost:11434/v1',
+        model: 'llama3.3',
+        models: ['llama3.3', 'qwen2.5-coder:32b', 'deepseek-r1:32b']
+      }
+    };
+
+    let isLocalDrawerOpen = false;
+    const chatMessages = document.getElementById('chat-messages');
+    const messageInput = document.getElementById('message-input');
+    const sendBtn = document.getElementById('send-btn');
+    const liveLatency = document.getElementById('live-latency');
+    const sessionListEl = document.getElementById('session-list');
+    const globalFactsListEl = document.getElementById('global-facts-list');
+    const localFactsListEl = document.getElementById('local-facts-list');
+    const localDrawer = document.getElementById('local-memory-drawer');
+
+    messageInput.addEventListener('input', function() {
+      this.style.height = 'auto';
+      this.style.height = Math.min(this.scrollHeight, 180) + 'px';
+    });
+
+    function handleKeyDown(event) {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        document.getElementById('chat-form').requestSubmit();
+      }
+    }
+
+    // ──────────────────────────── Settings ──────────────────────────
+    function loadSettings() {
+      const prov = settings.provider || 'openrouter';
+      document.getElementById('settings-provider-select').value = prov;
+      document.getElementById('settings-provider-input').value = prov;
+      document.getElementById('settings-baseurl-input').value = settings.base_url || 'https://openrouter.ai/api/v1';
+      document.getElementById('settings-model-input').value = settings.model || 'google/gemini-2.0-flash-exp:free';
+      document.getElementById('settings-key-input').value = settings.api_key || '';
+
+      const badge = document.getElementById('key-configured-badge');
+      if (settings.api_key) {
+        const masked = settings.api_key.substring(0, 4) + '...' + settings.api_key.substring(settings.api_key.length - 4);
+        badge.textContent = `✓ Saved (${masked})`;
+        badge.className = 'text-[10px] text-emerald-400 font-mono';
+      } else {
+        badge.textContent = '✗ No key set';
+        badge.className = 'text-[10px] text-amber-400 font-mono';
+      }
+
+      renderModelSelectOptions(prov, settings.model);
+      updateHeaderAndFooterConfig();
+    }
+
+    function handleProviderSelectChange(providerKey) {
+      const p = PRESETS[providerKey] || PRESETS.openrouter;
+      document.getElementById('settings-provider-input').value = p.provider;
+      document.getElementById('settings-baseurl-input').value = p.base_url;
+      document.getElementById('settings-model-input').value = p.model;
+      renderModelSelectOptions(providerKey, p.model);
+    }
+
+    function renderModelSelectOptions(providerKey, activeModel) {
+      const selectEl = document.getElementById('settings-model-select');
+      const p = PRESETS[providerKey] || PRESETS.openrouter;
+      selectEl.innerHTML = `
+        <option value="">-- Select Recommended Model --</option>
+        ${(p.models || []).map(m => `<option value="${m}" ${m === activeModel ? 'selected' : ''}>${m}</option>`).join('')}
+      `;
+    }
+
+    function handleModelSelectChange(selectedModel) {
+      if (selectedModel) {
+        document.getElementById('settings-model-input').value = selectedModel;
+      }
+    }
+
+    function toggleKeyVisibility() {
+      const input = document.getElementById('settings-key-input');
+      const icon = document.getElementById('key-visibility-icon');
+      if (input.type === 'password') {
+        input.type = 'text';
+        icon.className = 'fa-solid fa-eye-slash';
+      } else {
+        input.type = 'password';
+        icon.className = 'fa-solid fa-eye';
+      }
+    }
+
+    async function handleTestConnection() {
+      const btn = document.getElementById('btn-test-connection');
+      const resultBox = document.getElementById('test-result-box');
+      const base_url = document.getElementById('settings-baseurl-input').value.trim();
+      const model = document.getElementById('settings-model-input').value.trim();
+      const api_key = document.getElementById('settings-key-input').value.trim();
+
+      if (!api_key) {
+        alert('Please enter an API key to test connection.');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin text-cyan-400 text-xs"></i> <span>Testing...</span>';
+      resultBox.classList.add('hidden');
+
+      const url = base_url.replace(/\/+$/, '') + '/chat/completions';
+      const t0 = performance.now();
+
+      try {
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${api_key}`
+          },
+          body: JSON.stringify({
+            model: model,
+            messages: [{ role: 'user', content: 'Ping' }],
+            max_tokens: 2
+          })
+        });
+
+        const dt = Math.round(performance.now() - t0);
+        resultBox.classList.remove('hidden');
+
+        if (resp.ok) {
+          resultBox.className = 'p-2.5 rounded-lg text-xs border bg-emerald-950/40 border-emerald-500/40 text-emerald-300';
+          resultBox.innerHTML = `✓ Connection probe successful (${dt}ms latency)!`;
+        } else {
+          const errText = await resp.text();
+          resultBox.className = 'p-2.5 rounded-lg text-xs border bg-red-950/40 border-red-500/40 text-red-300';
+          resultBox.innerHTML = `❌ Error HTTP ${resp.status}: ${escapeHtml(errText.substring(0, 120))}`;
+        }
+      } catch (err) {
+        resultBox.classList.remove('hidden');
+        resultBox.className = 'p-2.5 rounded-lg text-xs border bg-red-950/40 border-red-500/40 text-red-300';
+        resultBox.innerHTML = `❌ Network Error: ${escapeHtml(err.message)}`;
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-plug text-xs text-cyan-400"></i> <span>Test Connection</span>';
+      }
+    }
+
+    function handleSaveSettings(e) {
+      e.preventDefault();
+      settings = {
+        provider: document.getElementById('settings-provider-input').value,
+        base_url: document.getElementById('settings-baseurl-input').value.trim(),
+        model: document.getElementById('settings-model-input').value.trim(),
+        api_key: document.getElementById('settings-key-input').value.trim()
+      };
+      localStorage.setItem('fb_settings', JSON.stringify(settings));
+      alert('✓ Settings saved locally!');
+      loadSettings();
+    }
+
+    function updateHeaderAndFooterConfig() {
+      document.getElementById('active-model-display').textContent = settings.model || 'N/A';
+      document.getElementById('active-provider-display').textContent = (settings.provider || 'OPENROUTER').toUpperCase();
+    }
+
+    // ──────────────────────────── Sessions ──────────────────────────
+    function getActiveSession() {
+      return sessions.find(s => s.id === activeSessionId);
+    }
+
+    function saveSessions() {
+      localStorage.setItem('fb_chat_sessions', JSON.stringify(sessions));
+      renderSessionList();
+    }
+
+    function loadSessions() {
+      if (sessions.length === 0) {
+        createNewSession();
+        return;
+      }
+      if (!activeSessionId || !sessions.some(s => s.id === activeSessionId)) {
+        activeSessionId = sessions[0].id;
+      }
+      selectSession(activeSessionId);
+    }
+
+    function createNewSession() {
+      const id = 'ses-' + Math.random().toString(36).substring(2, 9);
+      const session = {
+        id: id,
+        title: 'New Conversation',
+        messages: [],
+        localFacts: {},
+        updatedAt: new Date().toISOString()
+      };
+      sessions.unshift(session);
+      activeSessionId = id;
+      saveSessions();
+      selectSession(id);
+    }
+
+    function selectSession(id) {
+      activeSessionId = id;
+      localStorage.setItem('fb_active_session_id', id);
+      renderSessionList();
+
+      const ses = getActiveSession();
+      if (!ses) return;
+
+      document.getElementById('active-chat-title').textContent = ses.title;
+      document.getElementById('active-chat-meta').textContent = `${ses.messages.length} messages · Model: ${settings.model}`;
+      document.getElementById('local-count-badge').textContent = Object.keys(ses.localFacts || {}).length;
+
+      chatMessages.innerHTML = '';
+      if (ses.messages.length === 0) {
+        chatMessages.innerHTML = `
+          <div class="flex items-start space-x-3 max-w-3xl">
+            <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-cyan-600 to-blue-600 flex items-center justify-center text-white shrink-0 mt-0.5 shadow-md shadow-cyan-600/20">
+              <i class="fa-solid fa-robot text-sm"></i>
+            </div>
+            <div class="bg-zinc-900 border border-zinc-800 rounded-2xl rounded-tl-sm px-4 py-3.5 text-sm text-zinc-200 space-y-2 shadow-sm">
+              <p class="font-semibold text-cyan-400">New Conversation</p>
+              <p class="text-zinc-300">Type a message below or pin session facts using <b class="text-emerald-400">Local Memory</b> up top.</p>
+            </div>
+          </div>
+        `;
+      } else {
+        ses.messages.forEach(m => appendMessage(m.role, m.content, m.latency, null, false));
+      }
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+      renderLocalFactsList();
+      updateTelemetry();
+    }
+
+    function deleteSession(id) {
+      if (!confirm('Delete this conversation?')) return;
+      sessions = sessions.filter(s => s.id !== id);
+      if (activeSessionId === id) {
+        activeSessionId = sessions.length > 0 ? sessions[0].id : null;
+      }
+      saveSessions();
+      if (activeSessionId) selectSession(activeSessionId);
+      else createNewSession();
+    }
+
+    function deleteActiveSession() {
+      if (activeSessionId) deleteSession(activeSessionId);
+    }
+
+    function clearSessionRAM() {
+      const ses = getActiveSession();
+      if (!ses) return;
+      ses.messages = [];
+      saveSessions();
+      selectSession(activeSessionId);
+      alert('RAM cleared for active session.');
+    }
+
+    function renderSessionList() {
+      document.getElementById('total-sessions-badge').textContent = sessions.length;
+      if (sessions.length === 0) {
+        sessionListEl.innerHTML = '<div class="text-xs text-zinc-500 italic p-3 text-center">No saved chats.</div>';
+        return;
+      }
+
+      sessionListEl.innerHTML = sessions.map(s => {
+        const isActive = s.id === activeSessionId;
+        const displayTitle = s.title.length > 30 ? s.title.substring(0, 30) + '...' : s.title;
+        return `
+          <div
+            onclick="selectSession('${s.id}')"
+            class="group p-2.5 rounded-xl cursor-pointer transition-all flex items-center justify-between border ${
+              isActive ? 'bg-zinc-800/90 border-cyan-500/40 text-white shadow-sm' : 'bg-zinc-950/40 border-zinc-800/40 text-zinc-400 hover:bg-zinc-850 hover:text-zinc-200'
+            }"
+          >
+            <div class="flex items-center space-x-2.5 min-w-0 flex-1">
+              <i class="fa-regular fa-message text-xs ${isActive ? 'text-cyan-400' : 'text-zinc-500'}"></i>
+              <div class="min-w-0 flex-1">
+                <p class="text-xs font-medium truncate ${isActive ? 'text-zinc-100 font-semibold' : ''}">${escapeHtml(displayTitle)}</p>
+                <p class="text-[10px] text-zinc-500 flex items-center gap-1.5 mt-0.5">
+                  <span>${s.messages.length} turns</span>
+                </p>
+              </div>
+            </div>
+            <button
+              onclick="event.stopPropagation(); deleteSession('${s.id}')"
+              class="opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-red-400 p-1.5 rounded transition-all ml-1"
+            >
+              <i class="fa-solid fa-trash-can text-xs"></i>
+            </button>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // ──────────────────────────── Memory ──────────────────────────
+    function toggleLocalMemoryDrawer() {
+      isLocalDrawerOpen = !isLocalDrawerOpen;
+      if (isLocalDrawerOpen) {
+        localDrawer.classList.remove('translate-x-full');
+        renderLocalFactsList();
+      } else {
+        localDrawer.classList.add('translate-x-full');
+      }
+    }
+
+    function renderLocalFactsList() {
+      const ses = getActiveSession();
+      const facts = ses ? (ses.localFacts || {}) : {};
+      const keys = Object.keys(facts);
+      document.getElementById('local-count-badge').textContent = keys.length;
+
+      if (keys.length === 0) {
+        localFactsListEl.innerHTML = '<div class="text-xs text-zinc-500 italic p-3 text-center bg-zinc-950/40 rounded-xl border border-zinc-800/40">No pinned facts in this chat.</div>';
+        return;
+      }
+
+      localFactsListEl.innerHTML = keys.map(k => `
+        <div class="bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-2.5 flex items-start justify-between group hover:border-zinc-700 transition-colors">
+          <div class="min-w-0 flex-1 pr-2">
+            <span class="inline-block text-[10px] font-semibold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">${escapeHtml(k)}</span>
+            <p class="text-xs text-zinc-200 mt-1 leading-relaxed break-words">${escapeHtml(facts[k])}</p>
+          </div>
+          <button onclick="deleteLocalFact('${escapeHtml(k)}')" class="text-zinc-500 hover:text-red-400 p-1 transition-colors">
+            <i class="fa-solid fa-trash-can text-xs"></i>
+          </button>
+        </div>
+      `).join('');
+    }
+
+    function handleAddLocalFact(e) {
+      e.preventDefault();
+      const ses = getActiveSession();
+      if (!ses) return;
+      const k = document.getElementById('local-key-input').value.trim();
+      const v = document.getElementById('local-val-input').value.trim();
+      if (!k || !v) return;
+      if (!ses.localFacts) ses.localFacts = {};
+      ses.localFacts[k] = v;
+      saveSessions();
+      document.getElementById('local-key-input').value = '';
+      document.getElementById('local-val-input').value = '';
+      renderLocalFactsList();
+      updateTelemetry();
+    }
+
+    function deleteLocalFact(k) {
+      const ses = getActiveSession();
+      if (!ses || !ses.localFacts) return;
+      delete ses.localFacts[k];
+      saveSessions();
+      renderLocalFactsList();
+      updateTelemetry();
+    }
+
+    function loadGlobalMemory() {
+      document.getElementById('stat-global-count').textContent = globalFacts.length;
+      if (globalFacts.length === 0) {
+        globalFactsListEl.innerHTML = '<div class="text-xs text-zinc-500 italic p-3 text-center bg-zinc-950/40 rounded-xl border border-zinc-800/40">No global facts yet.</div>';
+        return;
+      }
+      globalFactsListEl.innerHTML = globalFacts.map((f, idx) => `
+        <div class="bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-2.5 flex items-start justify-between group hover:border-zinc-700 transition-colors">
+          <div class="min-w-0 flex-1 pr-2">
+            <span class="inline-block text-[10px] font-semibold uppercase tracking-wider text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">${escapeHtml(f.key)}</span>
+            <p class="text-xs text-zinc-200 mt-1 leading-relaxed break-words">${escapeHtml(f.value)}</p>
+          </div>
+          <button onclick="deleteGlobalFact(${idx})" class="text-zinc-500 hover:text-red-400 p-1 transition-colors">
+            <i class="fa-solid fa-trash-can text-xs"></i>
+          </button>
+        </div>
+      `).join('');
+    }
+
+    function handleGlobalPresetSelect(selectEl) {
+      const val = selectEl.value;
+      if (!val) return;
+      const [k, v] = val.split('|');
+      document.getElementById('global-key-input').value = k;
+      document.getElementById('global-val-input').value = v;
+      selectEl.value = '';
+    }
+
+    function handleAddGlobalFact(e) {
+      e.preventDefault();
+      const k = document.getElementById('global-key-input').value.trim();
+      const v = document.getElementById('global-val-input').value.trim();
+      if (!k || !v) return;
+      globalFacts.push({ key: k, value: v });
+      localStorage.setItem('fb_global_facts', JSON.stringify(globalFacts));
+      document.getElementById('global-key-input').value = '';
+      document.getElementById('global-val-input').value = '';
+      loadGlobalMemory();
+      updateTelemetry();
+    }
+
+    function deleteGlobalFact(idx) {
+      globalFacts.splice(idx, 1);
+      localStorage.setItem('fb_global_facts', JSON.stringify(globalFacts));
+      loadGlobalMemory();
+      updateTelemetry();
+    }
+
+    function switchSidebarTab(tab) {
+      document.getElementById('tab-btn-chats').className = 'py-1.5 px-2 rounded-lg transition-all flex items-center justify-center gap-1 text-zinc-400 hover:text-zinc-200';
+      document.getElementById('tab-btn-global').className = 'py-1.5 px-2 rounded-lg transition-all flex items-center justify-center gap-1 text-zinc-400 hover:text-zinc-200';
+      document.getElementById('tab-btn-settings').className = 'py-1.5 px-2 rounded-lg transition-all flex items-center justify-center gap-1 text-zinc-400 hover:text-zinc-200';
+      document.getElementById('tab-content-chats').classList.add('hidden');
+      document.getElementById('tab-content-global').classList.add('hidden');
+      document.getElementById('tab-content-settings').classList.add('hidden');
+
+      if (tab === 'chats') {
+        document.getElementById('tab-btn-chats').className = 'py-1.5 px-2 rounded-lg transition-all flex items-center justify-center gap-1 bg-zinc-800 text-white shadow-sm';
+        document.getElementById('tab-content-chats').classList.remove('hidden');
+      } else if (tab === 'global') {
+        document.getElementById('tab-btn-global').className = 'py-1.5 px-2 rounded-lg transition-all flex items-center justify-center gap-1 bg-zinc-800 text-white shadow-sm';
+        document.getElementById('tab-content-global').classList.remove('hidden');
+        loadGlobalMemory();
+      } else if (tab === 'settings') {
+        document.getElementById('tab-btn-settings').className = 'py-1.5 px-2 rounded-lg transition-all flex items-center justify-center gap-1 bg-zinc-800 text-white shadow-sm';
+        document.getElementById('tab-content-settings').classList.remove('hidden');
+        loadSettings();
+      }
+    }
+
+    // ──────────────────────────── Chat Dispatch ──────────────────────────
+    async function handleSend(e) {
+      e.preventDefault();
+      const message = messageInput.value.trim();
+      if (!message) return;
+
+      const ses = getActiveSession();
+      if (!ses) return;
+
+      if (ses.messages.length === 0) {
+        ses.title = message.length > 35 ? message.substring(0, 35) + '...' : message;
+      }
+
+      appendMessage('user', message);
+      ses.messages.push({ role: 'user', content: message });
+      saveSessions();
+
+      messageInput.value = '';
+      messageInput.style.height = 'auto';
+      sendBtn.disabled = true;
+
+      const startTime = performance.now();
+      liveLatency.textContent = 'Thinking...';
+      const typingId = appendTypingIndicator();
+
+      // Assemble system prompt with Dual Memory Layer
+      let systemPrompt = "You are a helpful, stateful conversational AI assistant.";
+      if (globalFacts.length > 0) {
+        systemPrompt += "\\n\\n[GLOBAL USER CONTEXT / MEMORY]\\n" + globalFacts.map(f => `- ${f.key}: ${f.value}`).join('\\n');
+      }
+      const localKeys = Object.keys(ses.localFacts || {});
+      if (localKeys.length > 0) {
+        systemPrompt += "\\n\\n[SESSION PINNED CONTEXT / LOCAL MEMORY]\\n" + localKeys.map(k => `- ${k}: ${ses.localFacts[k]}`).join('\\n');
+      }
+
+      const payloadMessages = [
+        { role: 'system', content: systemPrompt },
+        ...ses.messages.map(m => ({ role: m.role, content: m.content }))
+      ];
+
+      const url = (settings.base_url || 'https://openrouter.ai/api/v1').replace(/\/+$/, '') + '/chat/completions';
+
+      try {
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${settings.api_key}`
+          },
+          body: JSON.stringify({
+            model: settings.model || 'google/gemini-2.0-flash-exp:free',
+            messages: payloadMessages
+          })
+        });
+
+        removeTypingIndicator(typingId);
+
+        if (!resp.ok) {
+          const errBody = await resp.text();
+          appendMessage('system', `❌ API Error (${resp.status}): ${escapeHtml(errBody.substring(0, 200))}`);
+        } else {
+          const data = await resp.json();
+          const reply = data.choices && data.choices[0] && data.choices[0].message ? data.choices[0].message.content : 'No response returned.';
+          const latency = (performance.now() - startTime) / 1000;
+          appendMessage('assistant', reply, latency);
+          ses.messages.push({ role: 'assistant', content: reply, latency: latency });
+          saveSessions();
+          updateTelemetry();
+        }
+
+        const elapsed = ((performance.now() - startTime) / 1000).toFixed(2);
+        liveLatency.textContent = `Latency: ${elapsed}s`;
+      } catch (err) {
+        removeTypingIndicator(typingId);
+        appendMessage('system', '❌ Network error: ' + err.message + ' (Check Settings)');
+        liveLatency.textContent = 'Error';
+      } finally {
+        sendBtn.disabled = false;
+        messageInput.focus();
+      }
+    }
+
+    function appendMessage(role, text, latencySec, usage, shouldScroll = true) {
+      const container = document.createElement('div');
+      container.className = 'flex items-start space-x-3 max-w-3xl ' + (role === 'user' ? 'ml-auto justify-end' : '');
+
+      if (role === 'user') {
+        container.innerHTML = `
+          <div class="bg-cyan-600 text-white rounded-2xl rounded-tr-sm px-4 py-2.5 text-sm shadow-sm max-w-xl">
+            <p class="leading-relaxed">${escapeHtml(text).replace(/\\n/g, '<br/>')}</p>
+          </div>
+          <div class="w-8 h-8 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center text-cyan-400 shrink-0 mt-0.5">
+            <i class="fa-solid fa-user text-xs"></i>
+          </div>
+        `;
+      } else if (role === 'assistant') {
+        const rendered = marked.parse(text);
+        const statsMeta = latencySec ? `<div class="text-[10px] text-zinc-500 font-mono mt-2 pt-2 border-t border-zinc-800/80"><i class="fa-regular fa-clock"></i> ${latencySec.toFixed(2)}s</div>` : '';
+        container.innerHTML = `
+          <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-cyan-600 to-blue-600 flex items-center justify-center text-white shrink-0 mt-0.5 shadow-md shadow-cyan-600/20">
+            <i class="fa-solid fa-robot text-xs"></i>
+          </div>
+          <div class="flex-1 bg-zinc-900 border border-zinc-800 rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-zinc-200 shadow-sm">
+            <div class="prose">${rendered}</div>
+            ${statsMeta}
+          </div>
+        `;
+      } else {
+        container.innerHTML = `<div class="w-full bg-red-950/40 border border-red-800/40 rounded-xl p-3 text-xs text-red-300">${escapeHtml(text)}</div>`;
+      }
+
+      chatMessages.appendChild(container);
+      if (shouldScroll) chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    function appendTypingIndicator() {
+      const id = 'typing-' + Date.now();
+      const container = document.createElement('div');
+      container.id = id;
+      container.className = 'flex items-start space-x-3 max-w-3xl';
+      container.innerHTML = `
+        <div class="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center text-zinc-400 shrink-0 mt-0.5">
+          <i class="fa-solid fa-robot text-xs"></i>
+        </div>
+        <div class="bg-zinc-900 border border-zinc-800 rounded-2xl rounded-tl-sm px-4 py-3 flex items-center space-x-1.5">
+          <span class="w-2 h-2 rounded-full bg-cyan-400 animate-bounce"></span>
+          <span class="w-2 h-2 rounded-full bg-cyan-400 animate-bounce" style="animation-delay: 0.15s"></span>
+          <span class="w-2 h-2 rounded-full bg-cyan-400 animate-bounce" style="animation-delay: 0.3s"></span>
+        </div>
+      `;
+      chatMessages.appendChild(container);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+      return id;
+    }
+
+    function removeTypingIndicator(id) {
+      const el = document.getElementById(id);
+      if (el) el.remove();
+    }
+
+    function updateTelemetry() {
+      const ses = getActiveSession();
+      const turns = ses ? ses.messages.filter(m => m.role === 'user').length : 0;
+      document.getElementById('stat-turns').textContent = turns;
+      document.getElementById('stat-global-count').textContent = globalFacts.length;
+
+      let chars = 0;
+      if (ses) ses.messages.forEach(m => chars += m.content.length);
+      const estTokens = Math.round(chars / 3.2);
+      document.getElementById('token-ratio').textContent = `${estTokens.toLocaleString()} / 8,192`;
+      const pct = Math.min(100, Math.max(2, (estTokens / 8192) * 100));
+      document.getElementById('token-bar').style.width = pct + '%';
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    }
+
+    // Init
+    loadSettings();
+    loadGlobalMemory();
+    loadSessions();
+  </script>
+</body>
+</html>
