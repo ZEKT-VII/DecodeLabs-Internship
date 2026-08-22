@@ -939,6 +939,44 @@
       }
     }
 
+    function createStreamingAssistantBubble() {
+      const container = document.createElement('div');
+      container.className = 'flex items-start space-x-3 max-w-3xl';
+      container.innerHTML = `
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-cyan-600 to-blue-600 flex items-center justify-center text-white shrink-0 mt-0.5 shadow-md shadow-cyan-600/20">
+          <i class="fa-solid fa-robot text-xs"></i>
+        </div>
+        <div class="flex-1 bg-zinc-900 border border-zinc-800 rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-zinc-200 shadow-sm">
+          <div class="prose prose-invert max-w-none streaming-content"><span class="inline-block w-1.5 h-3.5 bg-cyan-400 animate-pulse ml-0.5 align-middle"></span></div>
+          <div class="streaming-meta hidden text-[10px] text-zinc-500 font-mono mt-2 pt-2 border-t border-zinc-800/80 flex items-center gap-3"></div>
+        </div>
+      `;
+      chatMessages.appendChild(container);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+      return container;
+    }
+
+    function updateStreamingAssistantBubble(bubble, accumulatedText) {
+      const prose = bubble.querySelector('.streaming-content');
+      if (prose) {
+        prose.innerHTML = marked.parse(accumulatedText) + '<span class="inline-block w-1.5 h-3.5 bg-cyan-400 animate-pulse ml-0.5 align-middle"></span>';
+      }
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    function finalizeStreamingAssistantBubble(bubble, finalText, latencySec) {
+      const prose = bubble.querySelector('.streaming-content');
+      if (prose) {
+        prose.innerHTML = marked.parse(finalText);
+      }
+      const meta = bubble.querySelector('.streaming-meta');
+      if (meta && latencySec) {
+        meta.classList.remove('hidden');
+        meta.innerHTML = `<span><i class="fa-regular fa-clock"></i> ${latencySec.toFixed(2)}s (streamed)</span>`;
+      }
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
     // ──────────────────────────── Chat Dispatch ──────────────────────────
     async function handleSend(e) {
       e.preventDefault();
@@ -948,30 +986,32 @@
       const ses = getActiveSession();
       if (!ses) return;
 
-      if (ses.messages.length === 0) {
-        ses.title = message.length > 35 ? message.substring(0, 35) + '...' : message;
-      }
+      const welcome = document.getElementById('welcome-message');
+      if (welcome) welcome.remove();
 
       appendMessage('user', message);
       ses.messages.push({ role: 'user', content: message });
       saveSessions();
+      renderSessionList();
 
       messageInput.value = '';
       messageInput.style.height = 'auto';
       sendBtn.disabled = true;
 
       const startTime = performance.now();
-      liveLatency.textContent = 'Thinking...';
+      liveLatency.textContent = 'Streaming...';
       const typingId = appendTypingIndicator();
+      let assistantBubble = null;
+      let accumulatedText = "";
 
       // Assemble system prompt with Dual Memory Layer
       let systemPrompt = "You are a helpful, stateful conversational AI assistant.";
       if (globalFacts.length > 0) {
-        systemPrompt += "\\n\\n[GLOBAL USER CONTEXT / MEMORY]\\n" + globalFacts.map(f => `- ${f.key}: ${f.value}`).join('\\n');
+        systemPrompt += "\n\n[GLOBAL USER CONTEXT / MEMORY]\n" + globalFacts.map(f => `- ${f.key}: ${f.value}`).join('\n');
       }
       const localKeys = Object.keys(ses.localFacts || {});
       if (localKeys.length > 0) {
-        systemPrompt += "\\n\\n[SESSION PINNED CONTEXT / LOCAL MEMORY]\\n" + localKeys.map(k => `- ${k}: ${ses.localFacts[k]}`).join('\\n');
+        systemPrompt += "\n\n[SESSION PINNED CONTEXT / LOCAL MEMORY]\n" + localKeys.map(k => `- ${k}: ${ses.localFacts[k]}`).join('\n');
       }
 
       const payloadMessages = [
@@ -990,24 +1030,63 @@
           },
           body: JSON.stringify({
             model: settings.model || 'google/gemini-2.0-flash-exp:free',
-            messages: payloadMessages
+            messages: payloadMessages,
+            stream: true
           })
         });
 
-        removeTypingIndicator(typingId);
-
         if (!resp.ok) {
+          removeTypingIndicator(typingId);
           const errBody = await resp.text();
           appendMessage('system', `❌ API Error (${resp.status}): ${escapeHtml(errBody.substring(0, 200))}`);
-        } else {
-          const data = await resp.json();
-          const reply = data.choices && data.choices[0] && data.choices[0].message ? data.choices[0].message.content : 'No response returned.';
-          const latency = (performance.now() - startTime) / 1000;
-          appendMessage('assistant', reply, latency);
-          ses.messages.push({ role: 'assistant', content: reply, latency: latency });
-          saveSessions();
-          updateTelemetry();
+          return;
         }
+
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop();
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || !trimmed.startsWith('data: ')) continue;
+            const dataStr = trimmed.substring(6);
+            if (dataStr === '[DONE]') continue;
+
+            try {
+              const parsed = JSON.parse(dataStr);
+              const chunk = (parsed.choices && parsed.choices[0] && parsed.choices[0].delta && parsed.choices[0].delta.content) || '';
+              if (chunk) {
+                if (!assistantBubble) {
+                  removeTypingIndicator(typingId);
+                  assistantBubble = createStreamingAssistantBubble();
+                }
+                accumulatedText += chunk;
+                updateStreamingAssistantBubble(assistantBubble, accumulatedText);
+              }
+            } catch (pErr) {
+              // SSE chunk boundary
+            }
+          }
+        }
+
+        removeTypingIndicator(typingId);
+        if (!assistantBubble) {
+          assistantBubble = createStreamingAssistantBubble();
+        }
+        const latency = (performance.now() - startTime) / 1000;
+        finalizeStreamingAssistantBubble(assistantBubble, accumulatedText, latency);
+
+        ses.messages.push({ role: 'assistant', content: accumulatedText, latency: latency });
+        saveSessions();
+        updateTelemetry();
 
         const elapsed = ((performance.now() - startTime) / 1000).toFixed(2);
         liveLatency.textContent = `Latency: ${elapsed}s`;

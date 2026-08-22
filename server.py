@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any, Dict, List, Optional
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -350,6 +351,58 @@ async def chat_endpoint(payload: ChatRequest):
         raise HTTPException(status_code=500, detail=e.message)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Unexpected server error: {str(e)}")
+
+
+@app.post("/api/chat/stream")
+async def chat_stream_endpoint(payload: ChatRequest):
+    """
+    Streams conversational turn tokens in real-time via Server-Sent Events (SSE).
+    """
+    raw_text = payload.message.strip()
+    if not raw_text:
+        raise HTTPException(status_code=400, detail="Message cannot be empty.")
+
+    engine = get_or_create_engine(payload.session_id)
+
+    # Check if input is a slash command
+    is_command, cmd_name, cmd_args = CaliperValidationGate.parse_and_validate_command(raw_text)
+    if is_command:
+        try:
+            result_text, should_exit = handle_command(cmd_name, cmd_args, engine)
+            def command_event_gen():
+                yield f"data: {json.dumps({'type': 'command', 'content': result_text, 'session_id': engine.session_id, 'stats': engine.get_stats(), 'local_facts': engine.get_local_facts()})}\n\n"
+            return StreamingResponse(
+                command_event_gen(),
+                media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
+            )
+        except InvalidCommandError as e:
+            raise HTTPException(status_code=400, detail=e.message)
+        except ChatbotError as e:
+            raise HTTPException(status_code=500, detail=e.message)
+
+    def event_generator():
+        try:
+            for event in engine.stream_message(raw_text):
+                yield f"data: {json.dumps(event)}\n\n"
+        except EmptyInputError as e:
+            yield f"data: {json.dumps({'type': 'error', 'detail': e.message})}\n\n"
+        except InputLengthError as e:
+            yield f"data: {json.dumps({'type': 'error', 'detail': e.message})}\n\n"
+        except ChatbotError as e:
+            yield f"data: {json.dumps({'type': 'error', 'detail': e.message})}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'error', 'detail': f'Unexpected streaming error: {str(e)}'})}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 # ──────────────────────────── Single-Page Web UI ──────────────────────────
@@ -1505,6 +1558,44 @@ HTML_CONTENT = """<!DOCTYPE html>
 
     // ──────────────────────────── Chat Operations ──────────────────────────
 
+    function createStreamingAssistantBubble() {
+      const container = document.createElement('div');
+      container.className = 'flex items-start space-x-3 max-w-3xl';
+      container.innerHTML = `
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-cyan-600 to-blue-600 flex items-center justify-center text-white shrink-0 mt-0.5 shadow-md shadow-cyan-600/20">
+          <i class="fa-solid fa-robot text-xs"></i>
+        </div>
+        <div class="flex-1 bg-zinc-900 border border-zinc-800 rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-zinc-200 shadow-sm">
+          <div class="prose prose-invert max-w-none streaming-content"><span class="inline-block w-1.5 h-3.5 bg-cyan-400 animate-pulse ml-0.5 align-middle"></span></div>
+          <div class="streaming-meta hidden text-[10px] text-zinc-500 font-mono mt-2 pt-2 border-t border-zinc-800/80 flex items-center gap-3"></div>
+        </div>
+      `;
+      chatMessages.appendChild(container);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+      return container;
+    }
+
+    function updateStreamingAssistantBubble(bubble, accumulatedText) {
+      const prose = bubble.querySelector('.streaming-content');
+      if (prose) {
+        prose.innerHTML = marked.parse(accumulatedText) + '<span class="inline-block w-1.5 h-3.5 bg-cyan-400 animate-pulse ml-0.5 align-middle"></span>';
+      }
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    function finalizeStreamingAssistantBubble(bubble, finalText, latencySec) {
+      const prose = bubble.querySelector('.streaming-content');
+      if (prose) {
+        prose.innerHTML = marked.parse(finalText);
+      }
+      const meta = bubble.querySelector('.streaming-meta');
+      if (meta && latencySec) {
+        meta.classList.remove('hidden');
+        meta.innerHTML = `<span><i class="fa-regular fa-clock"></i> ${latencySec.toFixed(2)}s (streamed)</span>`;
+      }
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
     async function handleSend(e) {
       e.preventDefault();
       const message = messageInput.value.trim();
@@ -1519,44 +1610,89 @@ HTML_CONTENT = """<!DOCTYPE html>
       sendBtn.disabled = true;
 
       const startTime = performance.now();
-      liveLatency.textContent = 'Thinking...';
+      liveLatency.textContent = 'Streaming...';
 
       const typingId = appendTypingIndicator();
+      let assistantBubble = null;
+      let accumulatedText = "";
 
       try {
-        const response = await fetch('/api/chat', {
+        const response = await fetch('/api/chat/stream', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ message: message, session_id: activeSessionId })
         });
 
-        const data = await response.json();
-        removeTypingIndicator(typingId);
-
         if (!response.ok) {
-          appendMessage('system', '❌ Error: ' + (data.detail || 'Failed to process request. Check API Settings in the sidebar.'));
-        } else {
-          if (data.type === 'command') {
-            appendMessage('command', data.content);
-          } else {
-            appendMessage('assistant', data.content, data.latency_sec, data.usage);
-          }
+          removeTypingIndicator(typingId);
+          const errData = await response.json();
+          appendMessage('system', '❌ Error: ' + (errData.detail || 'Failed to process request. Check API Settings in the sidebar.'));
+          return;
+        }
 
-          if (data.session_id && data.session_id !== activeSessionId) {
-            activeSessionId = data.session_id;
-            localStorage.setItem('stateful_active_session_id', activeSessionId);
-          }
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let buffer = '';
 
-          if (data.local_facts) {
-            localFactsCache = data.local_facts;
-            renderLocalFactsList();
-          }
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-          updateTelemetry(data.stats);
-          const sessionsResp = await fetch('/api/sessions');
-          if (sessionsResp.ok) {
-            sessionsCache = await sessionsResp.json();
-            renderSessionList();
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop(); // keep last incomplete chunk
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || !trimmed.startsWith('data: ')) continue;
+            const dataStr = trimmed.substring(6);
+            if (!dataStr) continue;
+
+            try {
+              const event = JSON.parse(dataStr);
+              if (event.type === 'token') {
+                if (!assistantBubble) {
+                  removeTypingIndicator(typingId);
+                  assistantBubble = createStreamingAssistantBubble();
+                }
+                accumulatedText += event.token;
+                updateStreamingAssistantBubble(assistantBubble, accumulatedText);
+              } else if (event.type === 'done') {
+                removeTypingIndicator(typingId);
+                if (!assistantBubble) {
+                  assistantBubble = createStreamingAssistantBubble();
+                }
+                finalizeStreamingAssistantBubble(assistantBubble, event.content, event.latency_sec);
+
+                if (event.session_id && event.session_id !== activeSessionId) {
+                  activeSessionId = event.session_id;
+                  localStorage.setItem('stateful_active_session_id', activeSessionId);
+                }
+                if (event.local_facts) {
+                  localFactsCache = event.local_facts;
+                  renderLocalFactsList();
+                }
+                updateTelemetry(event.stats);
+                const sessionsResp = await fetch('/api/sessions');
+                if (sessionsResp.ok) {
+                  sessionsCache = await sessionsResp.json();
+                  renderSessionList();
+                }
+              } else if (event.type === 'command') {
+                removeTypingIndicator(typingId);
+                appendMessage('command', event.content);
+                if (event.local_facts) {
+                  localFactsCache = event.local_facts;
+                  renderLocalFactsList();
+                }
+                updateTelemetry(event.stats);
+              } else if (event.type === 'error') {
+                removeTypingIndicator(typingId);
+                appendMessage('system', '❌ Error: ' + event.detail);
+              }
+            } catch (jsonErr) {
+              console.error('SSE JSON parse error:', jsonErr);
+            }
           }
         }
 

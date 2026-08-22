@@ -180,6 +180,80 @@ class ConversationEngine:
 
         return response
 
+    def stream_message(self, user_input: str):
+        """
+        Processes a user message in streaming mode:
+        1. Validates input via CaliperValidationGate
+        2. Reloads global facts from persistence
+        3. Adds user message to memory (P4)
+        4. Builds prioritized P1-P4 context
+        5. Calls llm.stream_chat(context) and yields tokens in real time
+        6. On completion, records assistant message in memory and SQLite
+        7. Yields completion metadata
+        """
+        if not self.session_id:
+            self.start_session()
+
+        # Step 1: Validate
+        validated_input = CaliperValidationGate.validate_user_input(user_input)
+
+        # Step 1.5: Sync global memory facts from persistence
+        self.reload_global_facts()
+
+        # Step 2: Add user message to memory
+        self.memory.add_message(MessageRole.USER, validated_input)
+
+        # Step 3: Build context
+        context = self.memory.build_context()
+
+        if len(context) < 2:
+            raise ContextOverflowError("Context assembly failed: no messages remain after pruning.")
+
+        start_time = time.time()
+        accumulated_chunks: List[str] = []
+
+        try:
+            for token_chunk in self.llm.stream_chat(messages=context):
+                accumulated_chunks.append(token_chunk)
+                yield {"type": "token", "token": token_chunk}
+        except Exception as e:
+            if not accumulated_chunks and self.memory._rolling_window and self.memory._rolling_window[-1].role == MessageRole.USER:
+                self.memory._rolling_window.pop()
+            raise
+
+        full_content = "".join(accumulated_chunks)
+        latency = time.time() - start_time
+
+        # Step 5: Add assistant response to memory
+        self.memory.add_message(MessageRole.ASSISTANT, full_content)
+
+        # Step 6: Persist
+        user_tokens = estimate_tokens(validated_input)
+        assistant_tokens = estimate_tokens(full_content)
+
+        self.persistence.save_message(
+            session_id=self.session_id,
+            role="user",
+            content=validated_input,
+            token_count=user_tokens,
+        )
+        self.persistence.save_message(
+            session_id=self.session_id,
+            role="assistant",
+            content=full_content,
+            token_count=assistant_tokens,
+        )
+
+        yield {
+            "type": "done",
+            "content": full_content,
+            "latency_sec": latency,
+            "model": self.model,
+            "session_id": self.session_id,
+            "stats": self.get_stats(),
+            "local_facts": self.get_local_facts(),
+        }
+
     # ──────────────────────────── Session Management ──────────────────────────
 
     def clear_memory(self) -> None:

@@ -166,6 +166,59 @@ class LLMClient:
         except Exception as e:
             raise APIResponseError(f"Unexpected error: {redact_secrets(str(e))}")
 
+    def stream_chat(
+        self,
+        messages: List[Dict[str, str]],
+        temperature: float = DEFAULT_TEMPERATURE,
+        top_p: float = DEFAULT_TOP_P,
+        max_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
+        enable_reasoning: bool = False,
+    ):
+        """
+        Streams chat completion tokens in real-time.
+        Yields string chunks as they arrive from the API.
+        """
+        try:
+            extra_body: Optional[Dict[str, Any]] = None
+            if enable_reasoning:
+                extra_body = {
+                    "chat_template_kwargs": {"thinking": True, "reasoning_effort": "high"}
+                }
+
+            response_stream = self._client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                temperature=temperature,
+                top_p=top_p,
+                max_tokens=max_tokens,
+                extra_body=extra_body,
+                stream=True,
+                timeout=REQUEST_TIMEOUT_SEC,
+            )
+
+            for chunk in response_stream:
+                if chunk.choices and len(chunk.choices) > 0:
+                    delta = chunk.choices[0].delta
+                    content = delta.content or ""
+                    if content:
+                        yield content
+
+        except OpenAITimeoutError as e:
+            raise APITimeoutError(f"Request timed out after {REQUEST_TIMEOUT_SEC}s: {redact_secrets(str(e))}")
+        except OpenAIAPIError as e:
+            status = getattr(e, "status_code", None) or getattr(e, "http_status", None)
+            msg = redact_secrets(str(e))
+            if status == 401:
+                raise AuthError(f"API authentication failed (401): {msg}")
+            elif status == 429:
+                raise APIRateLimitError(f"Rate limit exceeded (429): {msg}")
+            elif status and status in RETRYABLE_STATUS_CODES:
+                raise APIError(msg, status_code=status, retryable=True)
+            else:
+                raise APIResponseError(f"API error ({status}): {msg}", status_code=status)
+        except Exception as e:
+            raise APIResponseError(f"Unexpected streaming error: {redact_secrets(str(e))}")
+
     # ──────────────────────────── Usage Stats ──────────────────────────
 
     def get_usage_stats(self) -> Dict[str, int]:
