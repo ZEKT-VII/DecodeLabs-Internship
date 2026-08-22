@@ -12,7 +12,7 @@ from llm_client import LLMClient
 from memory import MemoryManager
 from persistence import SessionStore
 from schemas import ChatResponse, MessageRole
-from security import resolve_api_key
+from security import resolve_api_key, resolve_api_config
 from token_budget import estimate_tokens
 from validation import CaliperValidationGate
 
@@ -33,24 +33,42 @@ class ConversationEngine:
 
     def __init__(
         self,
-        model: str = DEFAULT_MODEL,
+        model: Optional[str] = None,
         system_prompt: str = DEFAULT_SYSTEM_PROMPT,
         api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
     ) -> None:
-        self.model = model
-        self._api_key = api_key
+        config = resolve_api_config()
+        self.model = model or config["model"] or DEFAULT_MODEL
+        self.base_url = base_url or config["base_url"]
+        self._api_key = api_key or (config["api_key"] if config.get("api_key") else None)
 
         # Core subsystems
         self.persistence = SessionStore()
         self.memory = MemoryManager(system_prompt=system_prompt)
         self.reload_global_facts()
-        self.llm = LLMClient(model=model, api_key=api_key)
+        self.llm = LLMClient(base_url=self.base_url, model=self.model, api_key=self._api_key)
 
         # Session state
         self.session_id: Optional[str] = None
         self._created_at: Optional[datetime] = None
 
-        logger.info("ConversationEngine initialized with model=%s", model)
+        logger.info("ConversationEngine initialized with model=%s on base_url=%s", self.model, self.base_url)
+
+    def configure(
+        self,
+        provider: str,
+        base_url: str,
+        model: str,
+        api_key: Optional[str] = None,
+    ) -> None:
+        """Dynamically reconfigures API settings across subsystems."""
+        self.model = model.strip()
+        self.base_url = base_url.strip()
+        if api_key:
+            self._api_key = api_key.strip()
+        self.llm.configure(base_url=self.base_url, model=self.model, api_key=self._api_key)
+        logger.info("ConversationEngine reconfigured: provider=%s, model=%s", provider, self.model)
 
     def start_session(self) -> str:
         """Begins a new conversation session with persistence."""

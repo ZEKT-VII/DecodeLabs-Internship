@@ -62,6 +62,11 @@ class SessionStore:
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS app_settings (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
                 CREATE INDEX IF NOT EXISTS idx_messages_session_id ON messages(session_id);
                 CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at);
             """)
@@ -327,6 +332,59 @@ class SessionStore:
             return cursor.rowcount > 0
         except sqlite3.Error as e:
             raise PersistenceError(f"Failed to delete global fact {key}: {e}")
+
+    # ──────────────────────────── App Settings (API / Provider) ──────────────────────────
+
+    def set_setting(self, key: str, value: str) -> None:
+        """Sets or updates an application setting."""
+        now = datetime.now(timezone.utc).isoformat()
+        conn = self._get_connection()
+        try:
+            conn.execute(
+                """
+                INSERT INTO app_settings (key, value, updated_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(key) DO UPDATE SET
+                    value = excluded.value,
+                    updated_at = excluded.updated_at
+                """,
+                (key.strip(), value.strip(), now),
+            )
+            conn.commit()
+        except sqlite3.Error as e:
+            raise PersistenceError(f"Failed to set setting {key}: {e}")
+
+    def get_setting(self, key: str, default: Optional[str] = None) -> Optional[str]:
+        """Retrieves a single application setting."""
+        conn = self._get_connection()
+        try:
+            row = conn.execute(
+                "SELECT value FROM app_settings WHERE key = ?", (key.strip(),)
+            ).fetchone()
+            if row:
+                return row["value"]
+            return default
+        except sqlite3.Error as e:
+            raise PersistenceError(f"Failed to get setting {key}: {e}")
+
+    def get_all_settings(self) -> Dict[str, str]:
+        """Retrieves all application settings."""
+        conn = self._get_connection()
+        try:
+            rows = conn.execute("SELECT key, value FROM app_settings").fetchall()
+            return {r["key"]: r["value"] for r in rows}
+        except sqlite3.Error as e:
+            raise PersistenceError(f"Failed to get all settings: {e}")
+
+    def delete_setting(self, key: str) -> bool:
+        """Deletes an application setting."""
+        conn = self._get_connection()
+        try:
+            cursor = conn.execute("DELETE FROM app_settings WHERE key = ?", (key.strip(),))
+            conn.commit()
+            return cursor.rowcount > 0
+        except sqlite3.Error as e:
+            raise PersistenceError(f"Failed to delete setting {key}: {e}")
 
     # ──────────────────────────── Lifecycle ──────────────────────────
 

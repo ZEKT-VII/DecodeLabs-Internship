@@ -181,3 +181,48 @@ class LLMClient:
         """Hot-swaps the API key without requiring a full client restart."""
         self._client = OpenAI(base_url=self.base_url, api_key=new_key)
         logger.info("API key updated at runtime.")
+
+    def configure(
+        self,
+        base_url: Optional[str] = None,
+        model: Optional[str] = None,
+        api_key: Optional[str] = None,
+    ) -> None:
+        """Dynamically reconfigures base_url, model, or API key."""
+        if base_url:
+            self.base_url = base_url.strip()
+        if model:
+            self.model = model.strip()
+        resolved_key = api_key or resolve_api_key(interactive_fallback=False)
+        self._client = OpenAI(base_url=self.base_url, api_key=resolved_key)
+        logger.info("LLMClient reconfigured: base_url=%s, model=%s", self.base_url, self.model)
+
+    @staticmethod
+    def test_connection(
+        base_url: str,
+        api_key: str,
+        model: str,
+    ) -> Dict[str, Any]:
+        """Probes the API endpoint with a lightweight 1-token test prompt."""
+        start = time.perf_counter()
+        try:
+            client = OpenAI(base_url=base_url.strip(), api_key=api_key.strip(), timeout=12.0)
+            res = client.chat.completions.create(
+                model=model.strip(),
+                messages=[{"role": "user", "content": "Hi"}],
+                max_tokens=2,
+            )
+            elapsed_ms = round((time.perf_counter() - start) * 1000, 1)
+            return {
+                "success": True,
+                "latency_ms": elapsed_ms,
+                "model": model,
+                "message": f"Connection verified in {elapsed_ms}ms! Endpoint active.",
+            }
+        except Exception as e:
+            elapsed_ms = round((time.perf_counter() - start) * 1000, 1)
+            return {
+                "success": False,
+                "latency_ms": elapsed_ms,
+                "error": redact_secrets(str(e)),
+            }

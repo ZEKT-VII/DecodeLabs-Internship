@@ -1,4 +1,4 @@
-"""FastAPI Local Web Server & Multi-Session Dashboard with Global & Local Memory for the Stateful Chatbot Agent."""
+"""FastAPI Local Web Server & Multi-Session Dashboard with In-App Settings & Encrypted Local Vault."""
 
 from __future__ import annotations
 
@@ -9,19 +9,27 @@ from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from config import DEFAULT_MODEL, DEFAULT_SYSTEM_PROMPT
+from config import DEFAULT_BASE_URL, DEFAULT_MODEL, DEFAULT_SYSTEM_PROMPT
 from engine import ConversationEngine
 from commands import handle_command
 from validation import CaliperValidationGate
 from exceptions import ChatbotError, EmptyInputError, InputLengthError, InvalidCommandError
-from security import get_key_status
+from security import (
+    get_key_status,
+    save_vault_api_settings,
+    get_vault_api_settings_summary,
+    resolve_api_config,
+    resolve_api_key,
+    decrypt_credential,
+)
 from persistence import SessionStore
+from llm_client import LLMClient
 
 # Initialize FastAPI App
 app = FastAPI(
     title="Stateful Conversational Agent",
-    description="DecodeLabs Project 1 — Multi-Session, Global & Local Memory Web Interface",
-    version="2.2.0",
+    description="DecodeLabs Project 1 — In-App Encrypted Vault, Multi-Provider & Dual Memory Interface",
+    version="2.3.0",
 )
 
 app.add_middleware(
@@ -52,7 +60,6 @@ def get_or_create_engine(session_id: Optional[str] = None) -> ConversationEngine
         return engine
 
     engine = ConversationEngine(
-        model=DEFAULT_MODEL,
         system_prompt=DEFAULT_SYSTEM_PROMPT,
     )
 
@@ -91,12 +98,80 @@ class FactRequest(BaseModel):
     value: str
 
 
+class SettingsRequest(BaseModel):
+    provider: str
+    base_url: str
+    model: str
+    api_key: Optional[str] = None
+
+
+class TestConnectionRequest(BaseModel):
+    provider: str
+    base_url: str
+    model: str
+    api_key: Optional[str] = None
+
+
 # ──────────────────────────── API Endpoints ──────────────────────────
 
 @app.get("/api/health")
 async def health_check():
-    return {"status": "ok", "model": DEFAULT_MODEL}
+    config = resolve_api_config()
+    return {"status": "ok", "model": config["model"], "provider": config["provider"]}
 
+
+# ──────────────────────────── In-App Settings & Vault Endpoints ──────────────────────────
+
+@app.get("/api/settings")
+async def get_settings_endpoint():
+    """Returns safe summary of current API settings (masked key, provider, base_url, model)."""
+    return get_vault_api_settings_summary()
+
+
+@app.post("/api/settings")
+async def save_settings_endpoint(payload: SettingsRequest):
+    """Encrypts and saves API settings into the local SQLite vault and updates active engines."""
+    provider = payload.provider.strip().lower()
+    base_url = payload.base_url.strip()
+    model = payload.model.strip()
+    api_key = payload.api_key.strip() if payload.api_key else None
+
+    if not base_url or not model:
+        raise HTTPException(status_code=400, detail="Base URL and Model Name are required.")
+
+    # Save to encrypted vault
+    save_vault_api_settings(provider=provider, base_url=base_url, model=model, api_key=api_key)
+
+    # Reconfigure all cached engines
+    for engine in _active_engines.values():
+        engine.configure(provider=provider, base_url=base_url, model=model, api_key=api_key)
+
+    return {
+        "status": "saved",
+        "message": "Settings encrypted and saved to local database vault!",
+        "settings": get_vault_api_settings_summary(),
+    }
+
+
+@app.post("/api/settings/test")
+async def test_connection_endpoint(payload: TestConnectionRequest):
+    """Tests connection against the specified OpenAI-compatible endpoint with a lightweight probe."""
+    base_url = payload.base_url.strip()
+    model = payload.model.strip()
+    api_key = payload.api_key.strip() if payload.api_key else ""
+
+    # If key wasn't supplied in test payload, try to resolve existing saved key
+    if not api_key:
+        try:
+            api_key = resolve_api_key(interactive_fallback=False)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Please enter an API key to test connection.")
+
+    result = LLMClient.test_connection(base_url=base_url, api_key=api_key, model=model)
+    return result
+
+
+# ──────────────────────────── Sessions Endpoints ──────────────────────────
 
 @app.get("/api/sessions")
 async def list_sessions():
@@ -108,7 +183,6 @@ async def list_sessions():
 async def create_session():
     """Creates a new isolated chat session."""
     engine = ConversationEngine(
-        model=DEFAULT_MODEL,
         system_prompt=DEFAULT_SYSTEM_PROMPT,
     )
     session_id = engine.start_session()
@@ -321,13 +395,13 @@ HTML_CONTENT = """<!DOCTYPE html>
         </div>
       </div>
 
-      <!-- Navigation Tabs: Chats vs Global Memory -->
+      <!-- Navigation Tabs: Chats vs Global Memory vs Settings -->
       <div class="px-3 pt-3">
-        <div class="grid grid-cols-2 gap-1 bg-zinc-950 p-1 rounded-xl border border-zinc-800 text-xs font-medium">
+        <div class="grid grid-cols-3 gap-1 bg-zinc-950 p-1 rounded-xl border border-zinc-800 text-xs font-medium">
           <button
             id="tab-btn-chats"
             onclick="switchSidebarTab('chats')"
-            class="py-1.5 px-3 rounded-lg transition-all flex items-center justify-center gap-1.5 bg-zinc-800 text-white shadow-sm"
+            class="py-1.5 px-2 rounded-lg transition-all flex items-center justify-center gap-1 bg-zinc-800 text-white shadow-sm"
           >
             <i class="fa-regular fa-message text-xs text-cyan-400"></i>
             <span>Chats</span>
@@ -335,11 +409,18 @@ HTML_CONTENT = """<!DOCTYPE html>
           <button
             id="tab-btn-global"
             onclick="switchSidebarTab('global')"
-            class="py-1.5 px-3 rounded-lg transition-all flex items-center justify-center gap-1.5 text-zinc-400 hover:text-zinc-200"
+            class="py-1.5 px-2 rounded-lg transition-all flex items-center justify-center gap-1 text-zinc-400 hover:text-zinc-200"
           >
             <i class="fa-solid fa-earth-americas text-xs text-amber-400"></i>
-            <span>Global Memory</span>
-            <span id="global-count-pill" class="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.2 rounded-full font-mono">0</span>
+            <span>Global</span>
+          </button>
+          <button
+            id="tab-btn-settings"
+            onclick="switchSidebarTab('settings')"
+            class="py-1.5 px-2 rounded-lg transition-all flex items-center justify-center gap-1 text-zinc-400 hover:text-zinc-200"
+          >
+            <i class="fa-solid fa-gear text-xs text-purple-400"></i>
+            <span>Settings</span>
           </button>
         </div>
       </div>
@@ -425,6 +506,149 @@ HTML_CONTENT = """<!DOCTYPE html>
         </div>
       </div>
 
+      <!-- TAB 3: Settings & API Configuration View -->
+      <div id="tab-content-settings" class="flex-1 flex flex-col min-h-0 p-3 space-y-3 hidden overflow-y-auto custom-scrollbar">
+        <!-- Settings Header -->
+        <div class="bg-purple-950/20 border border-purple-800/30 rounded-xl p-3 text-xs space-y-1.5">
+          <div class="flex items-center justify-between font-semibold text-purple-400">
+            <span class="flex items-center gap-1.5"><i class="fa-solid fa-shield-halved"></i> In-App API Settings</span>
+            <span class="text-[10px] bg-purple-500/20 text-purple-300 px-1.5 py-0.2 rounded font-mono">AES Vault</span>
+          </div>
+          <p class="text-zinc-300 text-[11px] leading-relaxed">
+            Keys are encrypted using <b>local machine-bound AES Fernet encryption</b> and stored in your private database.
+          </p>
+        </div>
+
+        <!-- Provider Presets -->
+        <div class="space-y-1.5">
+          <label class="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block">Provider Presets</label>
+          <div class="grid grid-cols-2 gap-1.5">
+            <button
+              type="button"
+              onclick="applyProviderPreset('nvidia')"
+              class="p-2 rounded-xl bg-zinc-950/80 hover:bg-zinc-800 border border-zinc-800 text-left transition-all"
+            >
+              <div class="font-medium text-xs text-emerald-400 flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-emerald-500"></span> NVIDIA NIM
+              </div>
+              <p class="text-[10px] text-zinc-500 mt-0.5 truncate">Llama 3.1, DeepSeek</p>
+            </button>
+            <button
+              type="button"
+              onclick="applyProviderPreset('openrouter')"
+              class="p-2 rounded-xl bg-zinc-950/80 hover:bg-zinc-800 border border-zinc-800 text-left transition-all"
+            >
+              <div class="font-medium text-xs text-blue-400 flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-blue-500"></span> OpenRouter
+              </div>
+              <p class="text-[10px] text-zinc-500 mt-0.5 truncate">Gemini, Claude, Llama</p>
+            </button>
+            <button
+              type="button"
+              onclick="applyProviderPreset('gemini')"
+              class="p-2 rounded-xl bg-zinc-950/80 hover:bg-zinc-800 border border-zinc-800 text-left transition-all"
+            >
+              <div class="font-medium text-xs text-cyan-400 flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-cyan-500"></span> Google Gemini
+              </div>
+              <p class="text-[10px] text-zinc-500 mt-0.5 truncate">Gemini 2.5 Flash / Pro</p>
+            </button>
+            <button
+              type="button"
+              onclick="applyProviderPreset('groq')"
+              class="p-2 rounded-xl bg-zinc-950/80 hover:bg-zinc-800 border border-zinc-800 text-left transition-all"
+            >
+              <div class="font-medium text-xs text-amber-400 flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-amber-500"></span> Groq
+              </div>
+              <p class="text-[10px] text-zinc-500 mt-0.5 truncate">Ultra-fast Llama 3.3</p>
+            </button>
+          </div>
+        </div>
+
+        <!-- Settings Form -->
+        <form onsubmit="handleSaveSettings(event)" class="bg-zinc-950/70 border border-zinc-800 rounded-xl p-3 space-y-3">
+          <!-- Provider Input (hidden/display) -->
+          <input type="hidden" id="settings-provider-input" value="nvidia" />
+
+          <!-- Base URL -->
+          <div class="space-y-1">
+            <label class="text-[11px] font-medium text-zinc-400">API Base URL</label>
+            <input
+              id="settings-baseurl-input"
+              type="text"
+              placeholder="https://integrate.api.nvidia.com/v1"
+              class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 focus:border-purple-500 focus:outline-none font-mono"
+              required
+            />
+          </div>
+
+          <!-- Model Name -->
+          <div class="space-y-1">
+            <label class="text-[11px] font-medium text-zinc-400">Model Name</label>
+            <input
+              id="settings-model-input"
+              type="text"
+              placeholder="meta/llama-3.1-8b-instruct"
+              class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 focus:border-purple-500 focus:outline-none font-mono"
+              required
+            />
+            <!-- Model suggestions -->
+            <div id="model-suggestions" class="flex flex-wrap gap-1 pt-1">
+              <!-- Populated by JS based on provider -->
+            </div>
+          </div>
+
+          <!-- API Key -->
+          <div class="space-y-1">
+            <div class="flex justify-between items-center">
+              <label class="text-[11px] font-medium text-zinc-400">API Key</label>
+              <span id="key-configured-badge" class="text-[10px] text-zinc-500 font-mono">Loading...</span>
+            </div>
+            <div class="relative">
+              <input
+                id="settings-key-input"
+                type="password"
+                placeholder="Enter new key to update or replace..."
+                class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 pr-8 text-xs text-zinc-100 placeholder-zinc-600 focus:border-purple-500 focus:outline-none font-mono"
+              />
+              <button
+                type="button"
+                onclick="toggleKeyVisibility()"
+                class="absolute right-2 top-2 text-zinc-500 hover:text-zinc-300 text-xs"
+              >
+                <i id="key-visibility-icon" class="fa-solid fa-eye"></i>
+              </button>
+            </div>
+            <p class="text-[10px] text-zinc-500">Leave blank to keep existing encrypted key.</p>
+          </div>
+
+          <!-- Test & Save Buttons -->
+          <div class="space-y-2 pt-1">
+            <button
+              type="button"
+              id="btn-test-connection"
+              onclick="handleTestConnection()"
+              class="w-full py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5"
+            >
+              <i class="fa-solid fa-plug text-xs text-cyan-400"></i>
+              <span>Test Connection</span>
+            </button>
+            
+            <button
+              type="submit"
+              class="w-full py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-lg text-xs font-semibold shadow-md shadow-purple-600/20 transition-all flex items-center justify-center gap-1.5"
+            >
+              <i class="fa-solid fa-lock text-xs"></i>
+              <span>Encrypt & Save Settings</span>
+            </button>
+          </div>
+
+          <!-- Test Result Box -->
+          <div id="test-result-box" class="hidden p-2.5 rounded-lg text-xs border"></div>
+        </form>
+      </div>
+
       <!-- Telemetry & Headroom Card (Shared) -->
       <div class="p-3 border-t border-zinc-800/80 bg-zinc-950/40 space-y-2.5 shrink-0">
         <div class="bg-zinc-900/90 border border-zinc-800/80 rounded-xl p-3 space-y-2">
@@ -454,10 +678,10 @@ HTML_CONTENT = """<!DOCTYPE html>
     <div class="p-3 border-t border-zinc-800/80 bg-zinc-950/90 text-xs shrink-0">
       <div class="flex items-center justify-between text-zinc-400 text-[11px]">
         <span class="flex items-center gap-1.5">
-          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span id="active-status-dot" class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
           <span id="active-model-display" class="font-mono text-zinc-300 truncate max-w-[160px]">meta/llama-3.1-8b</span>
         </span>
-        <span class="text-zinc-500 text-[10px]">NVIDIA NIM</span>
+        <span id="active-provider-display" class="text-zinc-500 text-[10px] uppercase font-semibold">NVIDIA</span>
       </div>
       <div class="mt-1 text-[10px] text-zinc-500 font-mono truncate" id="session-id-display">ID: ...</div>
     </div>
@@ -585,7 +809,7 @@ HTML_CONTENT = """<!DOCTYPE html>
           <p class="font-semibold text-cyan-400">Stateful Conversational Agent Ready</p>
           <p class="text-zinc-300 leading-relaxed">
             All conversations are isolated in dedicated sessions and persisted automatically in SQLite.
-            Use the <b class="text-emerald-400">Local Memory</b> button up top to pin session facts, or the <b class="text-amber-400">Global Memory</b> tab on the left for facts shared across all chats.
+            Open the <b class="text-purple-400">Settings</b> tab in the sidebar to configure any OpenAI-compatible endpoint with encrypted local key storage!
           </p>
         </div>
       </div>
@@ -625,6 +849,34 @@ HTML_CONTENT = """<!DOCTYPE html>
     let globalFactsCache = [];
     let localFactsCache = {};
     let isLocalDrawerOpen = false;
+    let currentSettings = {};
+
+    const PRESETS = {
+      nvidia: {
+        provider: 'nvidia',
+        base_url: 'https://integrate.api.nvidia.com/v1',
+        model: 'meta/llama-3.1-8b-instruct',
+        models: ['meta/llama-3.1-8b-instruct', 'deepseek-ai/deepseek-v4-flash-0731', 'meta/llama-3.3-70b-instruct']
+      },
+      openrouter: {
+        provider: 'openrouter',
+        base_url: 'https://openrouter.ai/api/v1',
+        model: 'google/gemini-2.0-flash-exp:free',
+        models: ['google/gemini-2.0-flash-exp:free', 'meta-llama/llama-3.3-70b-instruct:free', 'deepseek/deepseek-chat']
+      },
+      gemini: {
+        provider: 'gemini',
+        base_url: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+        model: 'gemini-2.5-flash',
+        models: ['gemini-2.5-flash', 'gemini-1.5-pro', 'gemini-1.5-flash']
+      },
+      groq: {
+        provider: 'groq',
+        base_url: 'https://api.groq.com/openai/v1',
+        model: 'llama-3.3-70b-versatile',
+        models: ['llama-3.3-70b-versatile', 'llama3-8b-8192', 'mixtral-8x7b-32768']
+      }
+    };
 
     const chatMessages = document.getElementById('chat-messages');
     const messageInput = document.getElementById('message-input');
@@ -646,6 +898,140 @@ HTML_CONTENT = """<!DOCTYPE html>
         event.preventDefault();
         document.getElementById('chat-form').requestSubmit();
       }
+    }
+
+    // ──────────────────────────── Settings & Providers ──────────────────────────
+
+    async function loadSettings() {
+      try {
+        const resp = await fetch('/api/settings');
+        if (!resp.ok) return;
+        currentSettings = await resp.json();
+
+        document.getElementById('settings-provider-input').value = currentSettings.provider || 'nvidia';
+        document.getElementById('settings-baseurl-input').value = currentSettings.base_url || 'https://integrate.api.nvidia.com/v1';
+        document.getElementById('settings-model-input').value = currentSettings.model || 'meta/llama-3.1-8b-instruct';
+        
+        const badge = document.getElementById('key-configured-badge');
+        if (currentSettings.is_configured) {
+          badge.textContent = `✓ Saved (${currentSettings.masked_key})`;
+          badge.className = 'text-[10px] text-emerald-400 font-mono';
+        } else {
+          badge.textContent = '✗ No key configured';
+          badge.className = 'text-[10px] text-amber-400 font-mono';
+        }
+
+        renderModelSuggestions(currentSettings.provider || 'nvidia');
+        updateHeaderAndFooterConfig(currentSettings);
+      } catch (err) {
+        console.error('Failed to load settings:', err);
+      }
+    }
+
+    function applyProviderPreset(providerKey) {
+      const p = PRESETS[providerKey];
+      if (!p) return;
+      document.getElementById('settings-provider-input').value = p.provider;
+      document.getElementById('settings-baseurl-input').value = p.base_url;
+      document.getElementById('settings-model-input').value = p.model;
+      renderModelSuggestions(providerKey);
+    }
+
+    function renderModelSuggestions(providerKey) {
+      const container = document.getElementById('model-suggestions');
+      const p = PRESETS[providerKey] || PRESETS.nvidia;
+      container.innerHTML = (p.models || []).map(m => `
+        <button
+          type="button"
+          onclick="document.getElementById('settings-model-input').value = '${m}'"
+          class="px-1.5 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded text-[10px] font-mono transition-colors"
+        >
+          ${m}
+        </button>
+      `).join('');
+    }
+
+    function toggleKeyVisibility() {
+      const input = document.getElementById('settings-key-input');
+      const icon = document.getElementById('key-visibility-icon');
+      if (input.type === 'password') {
+        input.type = 'text';
+        icon.className = 'fa-solid fa-eye-slash';
+      } else {
+        input.type = 'password';
+        icon.className = 'fa-solid fa-eye';
+      }
+    }
+
+    async function handleTestConnection() {
+      const btn = document.getElementById('btn-test-connection');
+      const resultBox = document.getElementById('test-result-box');
+      const provider = document.getElementById('settings-provider-input').value;
+      const base_url = document.getElementById('settings-baseurl-input').value.trim();
+      const model = document.getElementById('settings-model-input').value.trim();
+      const api_key = document.getElementById('settings-key-input').value.trim();
+
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin text-cyan-400 text-xs"></i> <span>Testing Endpoint...</span>';
+      resultBox.classList.add('hidden');
+
+      try {
+        const resp = await fetch('/api/settings/test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ provider, base_url, model, api_key })
+        });
+        const data = await resp.json();
+
+        resultBox.classList.remove('hidden');
+        if (data.success) {
+          resultBox.className = 'p-2.5 rounded-lg text-xs border bg-emerald-950/40 border-emerald-500/40 text-emerald-300';
+          resultBox.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-400 mr-1"></i> ${escapeHtml(data.message)}`;
+        } else {
+          resultBox.className = 'p-2.5 rounded-lg text-xs border bg-red-950/40 border-red-500/40 text-red-300';
+          resultBox.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-red-400 mr-1"></i> ${escapeHtml(data.error || 'Connection probe failed.')}`;
+        }
+      } catch (err) {
+        resultBox.classList.remove('hidden');
+        resultBox.className = 'p-2.5 rounded-lg text-xs border bg-red-950/40 border-red-500/40 text-red-300';
+        resultBox.innerHTML = `❌ Network error testing connection: ${escapeHtml(err.message)}`;
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-plug text-xs text-cyan-400"></i> <span>Test Connection</span>';
+      }
+    }
+
+    async function handleSaveSettings(e) {
+      e.preventDefault();
+      const provider = document.getElementById('settings-provider-input').value;
+      const base_url = document.getElementById('settings-baseurl-input').value.trim();
+      const model = document.getElementById('settings-model-input').value.trim();
+      const api_key = document.getElementById('settings-key-input').value.trim();
+
+      try {
+        const resp = await fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ provider, base_url, model, api_key: api_key || null })
+        });
+        const data = await resp.json();
+        if (resp.ok) {
+          document.getElementById('settings-key-input').value = '';
+          alert('✓ Settings encrypted & saved to local vault!');
+          await loadSettings();
+          if (activeSessionId) await selectSession(activeSessionId);
+        } else {
+          alert('Failed to save settings: ' + (data.detail || 'Unknown error'));
+        }
+      } catch (err) {
+        alert('Network error saving settings: ' + err.message);
+      }
+    }
+
+    function updateHeaderAndFooterConfig(settings) {
+      if (!settings) return;
+      document.getElementById('active-model-display').textContent = settings.model || 'N/A';
+      document.getElementById('active-provider-display').textContent = (settings.provider || 'NVIDIA').toUpperCase();
     }
 
     // ──────────────────────────── Local Memory Drawer ──────────────────────────
@@ -738,20 +1124,30 @@ HTML_CONTENT = """<!DOCTYPE html>
     function switchSidebarTab(tab) {
       const chatsTabBtn = document.getElementById('tab-btn-chats');
       const globalTabBtn = document.getElementById('tab-btn-global');
+      const settingsTabBtn = document.getElementById('tab-btn-settings');
       const chatsContent = document.getElementById('tab-content-chats');
       const globalContent = document.getElementById('tab-content-global');
+      const settingsContent = document.getElementById('tab-content-settings');
+
+      chatsTabBtn.className = 'py-1.5 px-2 rounded-lg transition-all flex items-center justify-center gap-1 text-zinc-400 hover:text-zinc-200';
+      globalTabBtn.className = 'py-1.5 px-2 rounded-lg transition-all flex items-center justify-center gap-1 text-zinc-400 hover:text-zinc-200';
+      settingsTabBtn.className = 'py-1.5 px-2 rounded-lg transition-all flex items-center justify-center gap-1 text-zinc-400 hover:text-zinc-200';
+
+      chatsContent.classList.add('hidden');
+      globalContent.classList.add('hidden');
+      settingsContent.classList.add('hidden');
 
       if (tab === 'chats') {
-        chatsTabBtn.className = 'py-1.5 px-3 rounded-lg transition-all flex items-center justify-center gap-1.5 bg-zinc-800 text-white shadow-sm';
-        globalTabBtn.className = 'py-1.5 px-3 rounded-lg transition-all flex items-center justify-center gap-1.5 text-zinc-400 hover:text-zinc-200';
+        chatsTabBtn.className = 'py-1.5 px-2 rounded-lg transition-all flex items-center justify-center gap-1 bg-zinc-800 text-white shadow-sm';
         chatsContent.classList.remove('hidden');
-        globalContent.classList.add('hidden');
-      } else {
-        globalTabBtn.className = 'py-1.5 px-3 rounded-lg transition-all flex items-center justify-center gap-1.5 bg-zinc-800 text-white shadow-sm';
-        chatsTabBtn.className = 'py-1.5 px-3 rounded-lg transition-all flex items-center justify-center gap-1.5 text-zinc-400 hover:text-zinc-200';
+      } else if (tab === 'global') {
+        globalTabBtn.className = 'py-1.5 px-2 rounded-lg transition-all flex items-center justify-center gap-1 bg-zinc-800 text-white shadow-sm';
         globalContent.classList.remove('hidden');
-        chatsContent.classList.add('hidden');
         loadGlobalMemory();
+      } else if (tab === 'settings') {
+        settingsTabBtn.className = 'py-1.5 px-2 rounded-lg transition-all flex items-center justify-center gap-1 bg-zinc-800 text-white shadow-sm';
+        settingsContent.classList.remove('hidden');
+        loadSettings();
       }
     }
 
@@ -769,7 +1165,7 @@ HTML_CONTENT = """<!DOCTYPE html>
     }
 
     function renderGlobalFactsList() {
-      document.getElementById('global-count-pill').textContent = globalFactsCache.length;
+      document.getElementById('global-count-pill')?.remove();
       document.getElementById('stat-global-count').textContent = globalFactsCache.length;
 
       if (globalFactsCache.length === 0) {
@@ -1040,7 +1436,7 @@ HTML_CONTENT = """<!DOCTYPE html>
         removeTypingIndicator(typingId);
 
         if (!response.ok) {
-          appendMessage('system', '❌ Error: ' + (data.detail || 'Failed to process request.'));
+          appendMessage('system', '❌ Error: ' + (data.detail || 'Failed to process request. Check API Settings in the sidebar.'));
         } else {
           if (data.type === 'command') {
             appendMessage('command', data.content);
@@ -1170,7 +1566,7 @@ ${escapeHtml(text)}
       if (!stats) return;
       document.getElementById('stat-turns').textContent = stats.active_turns || 0;
       document.getElementById('session-id-display').textContent = 'ID: ' + (stats.session_id || 'N/A');
-      document.getElementById('active-model-display').textContent = stats.model || 'N/A';
+      document.getElementById('active-model-display').textContent = stats.model || currentSettings.model || 'N/A';
       
       const current = stats.estimated_context_tokens || 0;
       const budget = stats.budget_tokens || 8192;
@@ -1193,6 +1589,7 @@ ${escapeHtml(text)}
     }
 
     // Startup Initialization
+    loadSettings();
     loadGlobalMemory();
     loadSessions();
   </script>

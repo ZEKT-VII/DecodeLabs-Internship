@@ -63,3 +63,20 @@ class TestRedactSecrets:
 
     def test_none_text(self):
         assert redact_secrets(None) is None
+
+
+class TestVaultEncryption:
+    """Tests for local machine-bound AES Fernet vault encryption."""
+
+    def test_encrypt_and_decrypt_roundtrip(self):
+        from security import encrypt_credential, decrypt_credential
+        secret = "sk-proj-test123456789"
+        encrypted = encrypt_credential(secret)
+        assert encrypted != secret
+        decrypted = decrypt_credential(encrypted)
+        assert decrypted == secret
+
+    def test_encrypt_empty_returns_empty(self):
+        from security import encrypt_credential, decrypt_credential
+        assert encrypt_credential("") == ""
+        assert decrypt_credential("") == ""
