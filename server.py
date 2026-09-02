@@ -1639,7 +1639,7 @@ HTML_CONTENT = """<!DOCTYPE html>
           if (done) break;
 
           buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
+          const lines = buffer.split('\\n');
           buffer = lines.pop(); // keep last incomplete chunk
 
           for (const line of lines) {
